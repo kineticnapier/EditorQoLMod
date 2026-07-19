@@ -1,0 +1,12 @@
+C:\Users\hello\Downloads\ADOFAI_Editor_QoL_UMM_v0.3.0\src\obj\Release\ADOFAIEditorQoL.csproj.AssemblyReference.cache
+C:\Users\hello\Downloads\ADOFAI_Editor_QoL_UMM_v0.3.0\src\obj\Release\ADOFAIEditorQoL.csproj.CoreCompileInputs.cache
+C:\Users\hello\Downloads\ADOFAI_Editor_QoL_UMM_v0.3.0\src\bin\Release\ADOFAIEditorQoL.dll
+C:\Users\hello\Downloads\ADOFAI_Editor_QoL_UMM_v0.3.0\src\bin\Release\ADOFAIEditorQoL.pdb
+C:\Users\hello\Downloads\ADOFAI_Editor_QoL_UMM_v0.3.0\src\obj\Release\ADOFAIEditorQoL.dll
+C:\Users\hello\Downloads\ADOFAI_Editor_QoL_UMM_v0.3.0\src\obj\Release\ADOFAIEditorQoL.pdb
+E:\dev\ADOFAI-Editor-QoL\src\bin\Release\ADOFAIEditorQoL.dll
+E:\dev\ADOFAI-Editor-QoL\src\bin\Release\ADOFAIEditorQoL.pdb
+E:\dev\ADOFAI-Editor-QoL\src\obj\Release\ADOFAIEditorQoL.csproj.AssemblyReference.cache
+E:\dev\ADOFAI-Editor-QoL\src\obj\Release\ADOFAIEditorQoL.csproj.CoreCompileInputs.cache
+E:\dev\ADOFAI-Editor-QoL\src\obj\Release\ADOFAIEditorQoL.dll
+E:\dev\ADOFAI-Editor-QoL\src\obj\Release\ADOFAIEditorQoL.pdb

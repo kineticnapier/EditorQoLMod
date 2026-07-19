@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{246A8535-3A80-43A8-901A-3E78BD831E13}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>Kiner.ADOFAIEditorQoL</RootNamespace>
+    <AssemblyName>ADOFAIEditorQoL</AssemblyName>
+    <TargetFrameworkVersion Condition=" '$(TargetFrameworkVersion)' == '' ">v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <GameManagedDir Condition=" '$(GameManagedDir)' == '' ">C:\Program Files (x86)\Steam\steamapps\common\A Dance of Fire and Ice\A Dance of Fire and Ice_Data\Managed</GameManagedDir>
+    <UmmDir Condition=" '$(UmmDir)' == '' ">$(GameManagedDir)\UnityModManager</UmmDir>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <LangVersion>7.3</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="Assembly-CSharp"><HintPath>$(GameManagedDir)\Assembly-CSharp.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="RDTools"><HintPath>$(GameManagedDir)\RDTools.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(GameManagedDir)\Newtonsoft.Json.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameManagedDir)\UnityEngine.CoreModule.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="UnityEngine.AudioModule"><HintPath>$(GameManagedDir)\UnityEngine.AudioModule.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule"><HintPath>$(GameManagedDir)\UnityEngine.JSONSerializeModule.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="UnityEngine.UIModule"><HintPath>$(GameManagedDir)\UnityEngine.UIModule.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>$(GameManagedDir)\UnityEngine.UI.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="Unity.TextMeshPro"><HintPath>$(GameManagedDir)\Unity.TextMeshPro.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(GameManagedDir)\UnityEngine.TextRenderingModule.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="UnityEngine.SpriteMaskModule"><HintPath>$(GameManagedDir)\UnityEngine.SpriteMaskModule.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(GameManagedDir)\UnityEngine.IMGUIModule.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(GameManagedDir)\UnityEngine.InputLegacyModule.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="UnityModManager"><HintPath>$(UmmDir)\UnityModManager.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(UmmDir)\0Harmony.dll</HintPath><Private>False</Private></Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Main.cs" />
+    <Compile Include="ModVersion.cs" />
+    <Compile Include="Localization\JapaneseLocalization.cs" />
+    <Compile Include="Core\EditorSelection.cs" />
+    <Compile Include="Core\EditorUndoScope.cs" />
+    <Compile Include="Core\PatternParser.cs" />
+    <Compile Include="Core\PatternOperations.cs" />
+    <Compile Include="Core\TileTransformOperations.cs" />
+    <Compile Include="Core\DecorationLayoutOperations.cs" />
+    <Compile Include="Core\EventAdvancedOperations.cs" />
+    <Compile Include="Core\EventInterpolationOperations.cs" />
+    <Compile Include="Core\EventPresetStore.cs" />
+    <Compile Include="Core\BatchInspectorOperations.cs" />
+    <Compile Include="Core\DiagnosticsOperations.cs" />
+    <Compile Include="Core\EventOperations.cs" />
+    <Compile Include="Core\NavigationOperations.cs" />
+    <Compile Include="Core\ScreenScrollOperations.cs" />
+    <Compile Include="Core\TrackAnimationRangeOperations.cs" />
+    <Compile Include="Core\DecorationColorWaveOperations.cs" />
+    <Compile Include="Core\ExpressionEvaluator.cs" />
+    <Compile Include="Core\FormulaOperations.cs" />
+    <Compile Include="Core\FilterOrderOperations.cs" />
+    <Compile Include="Core\DropdownFavorites.cs" />
+    <Compile Include="Core\DecorationMarkerTags.cs" />
+    <Compile Include="Core\TextMaskOperations.cs" />
+    <Compile Include="Core\CustomFontOperations.cs" />
+    <Compile Include="Core\TutorialBackgroundOperations.cs" />
+    <Compile Include="Patches\EditorLifecyclePatch.cs" />
+    <Compile Include="Patches\ColorWavePhasePatch.cs" />
+    <Compile Include="Patches\DropdownFavoritesPatch.cs" />
+    <Compile Include="Patches\TextDecorationRuntimePatch.cs" />
+    <Compile Include="Patches\TutorialBackgroundRuntimePatch.cs" />
+    <Compile Include="Patches\FakeFloorEventPatch.cs" />
+    <Compile Include="Patches\DuplicateFloorsShortcutPatch.cs" />
+    <Compile Include="Patches\HiddenEventButtonsPatch.cs" />
+    <Compile Include="Runtime\CustomTextFontRuntime.cs" />
+    <Compile Include="Runtime\TextMaskRuntime.cs" />
+    <Compile Include="Runtime\TutorialBackgroundRuntime.cs" />
+    <Compile Include="UI\NativeDropdown.cs" />
+    <Compile Include="UI\EditorQoLPanel.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Properties\GeneratedVersion.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
