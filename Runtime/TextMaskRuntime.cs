@@ -5,7 +5,7 @@ using UnityEngine.UI;
 
 namespace Kiner.ADOFAIEditorQoL.Runtime
 {
-    public sealed class TextMaskRuntime : MonoBehaviour
+    public sealed class TextMaskRuntime : MonoBehaviour, IRuntimeEffect
     {
         private scrTextDecoration decoration;
         private Text text;
@@ -243,9 +243,16 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             texture = null;
         }
 
-        private void OnDestroy()
+        public void StopAndRestore()
         {
             if (text != null) text.enabled = true;
+            if (helper != null) helper.SetActive(false);
+            ForceTargetCacheRefresh();
+        }
+
+        private void OnDestroy()
+        {
+            StopAndRestore();
             DestroyGeneratedAssets();
             if (renderMaterial != null) Destroy(renderMaterial);
             if (helper != null) Destroy(helper);

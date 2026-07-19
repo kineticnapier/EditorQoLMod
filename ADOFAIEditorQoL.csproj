@@ -9,7 +9,8 @@
     <AssemblyName>ADOFAIEditorQoL</AssemblyName>
     <TargetFrameworkVersion Condition=" '$(TargetFrameworkVersion)' == '' ">v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
-    <GameManagedDir Condition=" '$(GameManagedDir)' == '' ">C:\Program Files (x86)\Steam\steamapps\common\A Dance of Fire and Ice\A Dance of Fire and Ice_Data\Managed</GameManagedDir>
+    <GameManagedDir Condition=" '$(GameManagedDir)' == '' and '$(ADOFAI_GAME_MANAGED_DIR)' != '' ">$(ADOFAI_GAME_MANAGED_DIR)</GameManagedDir>
+    <GameManagedDir Condition=" '$(GameManagedDir)' == '' ">$(MSBuildProjectDirectory)\..\reference\Managed</GameManagedDir>
     <UmmDir Condition=" '$(UmmDir)' == '' ">$(GameManagedDir)\UnityModManager</UmmDir>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
@@ -77,6 +78,7 @@
     <Compile Include="Patches\DuplicateFloorsShortcutPatch.cs" />
     <Compile Include="Patches\HiddenEventButtonsPatch.cs" />
     <Compile Include="Runtime\CustomTextFontRuntime.cs" />
+    <Compile Include="Runtime\RuntimeEffects.cs" />
     <Compile Include="Runtime\TextMaskRuntime.cs" />
     <Compile Include="Runtime\TutorialBackgroundRuntime.cs" />
     <Compile Include="UI\NativeDropdown.cs" />

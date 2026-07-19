@@ -12,7 +12,7 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
     /// GameObject is disabled when a custom image background is used, so attaching
     /// the updater to that object prevents Update from running at all.
     /// </summary>
-    public sealed class TutorialBackgroundRuntime : MonoBehaviour
+    public sealed class TutorialBackgroundRuntime : MonoBehaviour, IRuntimeEffect
     {
         private scnGame game;
         private TutorialBackground background;
@@ -246,6 +246,20 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             if (active.TileEnabled) SetTileColor(Color.LerpUnclamped(startTile, active.TileColor, t));
             if (active.ShapeEnabled) SetShapeColor(Color.LerpUnclamped(startShape, active.ShapeColor, t));
             if (active.CameraEnabled) SetCameraColor(Color.LerpUnclamped(startCamera, active.CameraColor, t));
+        }
+
+        public void StopAndRestore()
+        {
+            active = null;
+            tweenDuration = 0f;
+            if (baseCaptured) RestoreBaseColors();
+            initialized = false;
+            captureBaseOnNextRefresh = true;
+        }
+
+        private void OnDestroy()
+        {
+            StopAndRestore();
         }
 
         private Color GetTileColor()

@@ -1,5 +1,6 @@
 using HarmonyLib;
 using Kiner.ADOFAIEditorQoL.Core;
+using Kiner.ADOFAIEditorQoL.Runtime;
 using UnityModManagerNet;
 
 namespace Kiner.ADOFAIEditorQoL
@@ -30,13 +31,24 @@ namespace Kiner.ADOFAIEditorQoL
         {
             Enabled = value;
             UI.EditorQoLPanel.SetModEnabled(value);
+            if (value)
+            {
+                RuntimeEffects.ReactivateCurrentScene();
+            }
+            else
+            {
+                RuntimeEffects.Cleanup();
+            }
             return true;
         }
 
         private static bool OnUnload(UnityModManager.ModEntry modEntry)
         {
+            Enabled = false;
             DropdownFavorites.Save();
             EventPresetStore.Save();
+            RuntimeEffects.Cleanup();
+            Pacl2UndoBridge.Cleanup();
             UI.EditorQoLPanel.DestroyCurrent();
             if (harmony != null) harmony.UnpatchAll(modEntry.Info.Id);
             return true;

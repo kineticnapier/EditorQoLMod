@@ -42,20 +42,20 @@ namespace Kiner.ADOFAIEditorQoL.Core
 
         private double ParseTerm()
         {
-            double value = ParsePower();
+            double value = ParseUnary();
             while (true)
             {
                 SkipWhite();
-                if (Match('*')) value *= ParsePower();
+                if (Match('*')) value *= ParseUnary();
                 else if (Match('/'))
                 {
-                    double divisor = ParsePower();
+                    double divisor = ParseUnary();
                     if (Math.Abs(divisor) < 1e-15) throw new DivideByZeroException();
                     value /= divisor;
                 }
                 else if (Match('%'))
                 {
-                    double divisor = ParsePower();
+                    double divisor = ParseUnary();
                     if (Math.Abs(divisor) < 1e-15) throw new DivideByZeroException();
                     value %= divisor;
                 }
@@ -65,9 +65,9 @@ namespace Kiner.ADOFAIEditorQoL.Core
 
         private double ParsePower()
         {
-            double value = ParseUnary();
+            double value = ParsePrimary();
             SkipWhite();
-            if (Match('^')) value = Math.Pow(value, ParsePower());
+            if (Match('^')) value = Math.Pow(value, ParseUnary());
             return value;
         }
 
@@ -76,7 +76,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
             SkipWhite();
             if (Match('+')) return ParseUnary();
             if (Match('-')) return -ParseUnary();
-            return ParsePrimary();
+            return ParsePower();
         }
 
         private double ParsePrimary()

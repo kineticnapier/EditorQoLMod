@@ -12,7 +12,8 @@ namespace Kiner.ADOFAIEditorQoL.Core
         {
             LevelEvent sample = new LevelEvent(0, eventType);
             return sample.data
-                .Where(x => IsNumericValue(x.Value))
+                .Where(x => !string.Equals(x.Key, "floor", StringComparison.OrdinalIgnoreCase) &&
+                            IsNumericValue(x.Value))
                 .Select(x => x.Key)
                 .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -33,6 +34,8 @@ namespace Kiner.ADOFAIEditorQoL.Core
         {
             if (string.IsNullOrWhiteSpace(property)) throw new ArgumentException("数値項目が選択されていません。");
             if (string.IsNullOrWhiteSpace(expression)) throw new ArgumentException("数式が空です。");
+            if (!GetNumericPropertyNames(eventType).Contains(property))
+                throw new ArgumentException("変更可能な数値項目を選択してください。");
             FloorRange range = EditorSelection.GetRange(editor, true);
 
             List<LevelEvent> matches = editor.events.Where(x => x.eventType == eventType &&
@@ -122,14 +125,47 @@ namespace Kiner.ADOFAIEditorQoL.Core
 
         private static object ConvertBack(double value, Type type)
         {
-            if (type == typeof(float)) return (float)value;
+            if (double.IsNaN(value) || double.IsInfinity(value))
+                throw new ArithmeticException("The expression produced a non-finite value.");
+            if (type == typeof(float))
+            {
+                if (value < -float.MaxValue || value > float.MaxValue)
+                    throw new OverflowException("計算結果がSingleの範囲を超えています。");
+                float result = (float)value;
+                if (float.IsNaN(result) || float.IsInfinity(result))
+                    throw new OverflowException("計算結果がSingleの範囲を超えています。");
+                return result;
+            }
             if (type == typeof(double)) return value;
-            if (type == typeof(int)) return (int)Math.Round(value);
-            if (type == typeof(long)) return (long)Math.Round(value);
-            if (type == typeof(short)) return (short)Math.Round(value);
-            if (type == typeof(byte)) return (byte)Math.Max(byte.MinValue, Math.Min(byte.MaxValue, Math.Round(value)));
-            if (type == typeof(uint)) return (uint)Math.Max(0d, Math.Round(value));
+            if (type == typeof(int)) return CheckedInteger(value, int.MinValue, int.MaxValue, type);
+            if (type == typeof(long)) return CheckedInteger(value, long.MinValue, long.MaxValue, type);
+            if (type == typeof(short)) return CheckedInteger(value, short.MinValue, short.MaxValue, type);
+            if (type == typeof(byte)) return CheckedInteger(value, byte.MinValue, byte.MaxValue, type);
+            if (type == typeof(uint)) return CheckedInteger(value, uint.MinValue, uint.MaxValue, type);
+            if (type == typeof(ushort)) return CheckedInteger(value, ushort.MinValue, ushort.MaxValue, type);
+            if (type == typeof(sbyte)) return CheckedInteger(value, sbyte.MinValue, sbyte.MaxValue, type);
+            if (type == typeof(ulong))
+            {
+                double rounded = Math.Round(value);
+                if (rounded < ulong.MinValue || rounded > ulong.MaxValue)
+                    throw new OverflowException("計算結果がUInt64の範囲を超えています。");
+                return (ulong)rounded;
+            }
+            if (type == typeof(decimal))
+            {
+                if (value < (double)decimal.MinValue || value > (double)decimal.MaxValue)
+                    throw new OverflowException("計算結果がDecimalの範囲を超えています。");
+                return (decimal)value;
+            }
             return Convert.ChangeType(value, type, CultureInfo.InvariantCulture);
+        }
+
+        private static object CheckedInteger(double value, double min, double max, Type type)
+        {
+            double rounded = Math.Round(value);
+            if (rounded < min || rounded > max)
+                throw new OverflowException("計算結果が" + type.Name + "の範囲を超えています。");
+            return Convert.ChangeType(rounded, type, CultureInfo.InvariantCulture);
         }
 
         private static int GetSourceIndex(scnEditor editor, LevelEvent evnt)

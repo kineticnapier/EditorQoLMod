@@ -84,6 +84,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
         {
             id = 0;
             if (!EnsureAvailable()) return false;
+            RemoveOrphanedSnapshots();
 
             Snapshot snapshot = Capture(editor);
             id = nextId++;
@@ -111,7 +112,9 @@ namespace Kiner.ADOFAIEditorQoL.Core
                     undoStates.RemoveAt(0);
                 }
                 undoStates.Add(state);
+                RemoveDynamicSnapshots(redoStates);
                 redoStates.Clear();
+                RemoveOrphanedSnapshots(undoStates, redoStates);
 
                 FieldInfo unsaved = AccessTools.Field(typeof(scnEditor), "_unsavedChanges");
                 if (unsaved != null) unsaved.SetValue(editor, true);
@@ -121,6 +124,25 @@ namespace Kiner.ADOFAIEditorQoL.Core
                 snapshots.Remove(id);
                 throw;
             }
+        }
+
+        internal static void Cleanup()
+        {
+            if (EnsureAvailable())
+            {
+                try
+                {
+                    IList undoStates = undoStatesField.GetValue(null) as IList;
+                    IList redoStates = redoStatesField.GetValue(null) as IList;
+                    RemoveDynamicStates(undoStates);
+                    RemoveDynamicStates(redoStates);
+                }
+                catch
+                {
+                    // Cleanup must never make unload or scene transitions fail.
+                }
+            }
+            snapshots.Clear();
         }
 
         /// <summary>Called by the runtime-generated PACL2 LevelState.</summary>
@@ -317,6 +339,66 @@ namespace Kiner.ADOFAIEditorQoL.Core
                 return;
             object value = dynamicIdField.GetValue(state);
             if (value is int) snapshots.Remove((int)value);
+        }
+
+        private static void RemoveDynamicSnapshots(IList states)
+        {
+            if (states == null) return;
+            for (int i = 0; i < states.Count; i++)
+                RemoveDynamicSnapshot(states[i]);
+        }
+
+        private static void RemoveDynamicStates(IList states)
+        {
+            if (states == null || dynamicStateType == null) return;
+            for (int i = states.Count - 1; i >= 0; i--)
+            {
+                object state = states[i];
+                if (state == null || !dynamicStateType.IsInstanceOfType(state)) continue;
+                RemoveDynamicSnapshot(state);
+                states.RemoveAt(i);
+            }
+        }
+
+        private static void RemoveOrphanedSnapshots()
+        {
+            if (!EnsureAvailable()) return;
+            try
+            {
+                RemoveOrphanedSnapshots(undoStatesField.GetValue(null) as IList,
+                    redoStatesField.GetValue(null) as IList);
+            }
+            catch
+            {
+                // Best-effort leak prevention only.
+            }
+        }
+
+        private static void RemoveOrphanedSnapshots(IList undoStates, IList redoStates)
+        {
+            if (snapshots.Count == 0 || dynamicStateType == null || dynamicIdField == null) return;
+
+            HashSet<int> live = new HashSet<int>();
+            AddDynamicIds(undoStates, live);
+            AddDynamicIds(redoStates, live);
+
+            int[] ids = snapshots.Keys.ToArray();
+            for (int i = 0; i < ids.Length; i++)
+            {
+                if (!live.Contains(ids[i])) snapshots.Remove(ids[i]);
+            }
+        }
+
+        private static void AddDynamicIds(IList states, ISet<int> destination)
+        {
+            if (states == null) return;
+            for (int i = 0; i < states.Count; i++)
+            {
+                object state = states[i];
+                if (state == null || !dynamicStateType.IsInstanceOfType(state)) continue;
+                object value = dynamicIdField.GetValue(state);
+                if (value is int) destination.Add((int)value);
+            }
         }
     }
 }

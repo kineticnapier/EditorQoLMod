@@ -8,7 +8,7 @@ using UnityEngine.UI;
 
 namespace Kiner.ADOFAIEditorQoL.Runtime
 {
-    public sealed class CustomTextFontRuntime : MonoBehaviour
+    public sealed class CustomTextFontRuntime : MonoBehaviour, IRuntimeEffect
     {
         private static readonly Dictionary<string, Font> FileFontCache =
             new Dictionary<string, Font>(StringComparer.OrdinalIgnoreCase);
@@ -29,6 +29,8 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
         private scrTextDecoration decoration;
         private Text text;
         private string family;
+        private Font originalFont;
+        private bool originalFontCaptured;
         private Font appliedFont;
         private bool applying;
         private bool warned;
@@ -39,6 +41,11 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             decoration = source;
             text = source == null ? null : source.text;
             family = (fontFamily ?? string.Empty).Trim();
+            if (!originalFontCaptured && text != null)
+            {
+                originalFont = text.font;
+                originalFontCaptured = true;
+            }
             warned = false;
             loggedResolution = false;
             ApplyOnce();
@@ -324,6 +331,38 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             if (warned) return;
             warned = true;
             Main.Logger.Warning(message);
+        }
+
+        public void StopAndRestore()
+        {
+            if (text != null && originalFontCaptured)
+            {
+                text.font = originalFont;
+                text.SetAllDirty();
+            }
+            appliedFont = null;
+        }
+
+        private void OnDestroy()
+        {
+            StopAndRestore();
+        }
+
+        internal static void ClearCachedFonts()
+        {
+            HashSet<Font> fonts = new HashSet<Font>();
+            foreach (Font font in FileFontCache.Values) if (font != null) fonts.Add(font);
+            foreach (Font font in SingleFontCache.Values) if (font != null) fonts.Add(font);
+            foreach (Font font in CompositeFontCache.Values) if (font != null) fonts.Add(font);
+
+            FileFontCache.Clear();
+            SingleFontCache.Clear();
+            CompositeFontCache.Clear();
+
+            foreach (Font font in fonts)
+            {
+                if (font != null) Destroy(font);
+            }
         }
     }
 }

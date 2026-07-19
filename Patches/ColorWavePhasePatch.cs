@@ -14,6 +14,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
 
         private static void Postfix(scrObjectDecoration __instance)
         {
+            if (!Main.Enabled) return;
             DecorationColorWaveOperations.ApplyRuntimePhase(__instance);
         }
     }

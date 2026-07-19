@@ -7,6 +7,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
     {
         private static void Postfix(scnEditor __instance)
         {
+            Core.Pacl2UndoBridge.Cleanup();
             if (Main.Enabled) UI.EditorQoLPanel.Attach(__instance);
         }
     }
@@ -46,11 +47,17 @@ namespace Kiner.ADOFAIEditorQoL.Patches
     {
         private static void Prefix(out bool __state)
         {
+            if (!Main.Enabled)
+            {
+                __state = false;
+                return;
+            }
             __state = UI.EditorQoLPanel.IsQoLShowing;
         }
 
         private static void Postfix(scnEditor __instance, bool __state)
         {
+            if (!Main.Enabled) return;
             UI.EditorQoLPanel.RestoreAfterUndo(__instance, __state);
         }
     }

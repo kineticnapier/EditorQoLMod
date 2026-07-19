@@ -92,6 +92,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
             FloorRange range = EditorSelection.GetRange(editor, true);
             List<int> targets = new List<int>();
             for (int floor = range.Start + phase; floor <= range.End; floor += interval) targets.Add(floor);
+            HashSet<int> targetSet = new HashSet<int>(targets);
             int added = 0;
             int skipped = 0;
             int removed = 0;
@@ -102,15 +103,15 @@ namespace Kiner.ADOFAIEditorQoL.Core
             {
                 if (mode == EventPasteMode.OverwriteAllFloorEvents)
                 {
-                    removed += editor.events.RemoveAll(x => targets.Contains(x.floor));
+                    removed += editor.events.RemoveAll(x => targetSet.Contains(x.floor));
                 }
                 else if (mode == EventPasteMode.OverwriteSameType)
                 {
-                    removed += editor.events.RemoveAll(x => targets.Contains(x.floor) && sourceTypes.Contains(x.eventType));
+                    removed += editor.events.RemoveAll(x => targetSet.Contains(x.floor) && sourceTypes.Contains(x.eventType));
                     if (includeDecorations && decorationTypes.Count > 0)
                     {
                         List<LevelEvent> oldDecorations = editor.decorations
-                            .Where(x => targets.Contains(x.floor) && decorationTypes.Contains(x.eventType)).ToList();
+                            .Where(x => targetSet.Contains(x.floor) && decorationTypes.Contains(x.eventType)).ToList();
                         editor.RemoveEvents(oldDecorations);
                         removed += oldDecorations.Count;
                     }
