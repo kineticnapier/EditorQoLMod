@@ -61,6 +61,7 @@
     <Compile Include="Core\ScreenScrollOperations.cs" />
     <Compile Include="Core\TrackAnimationRangeOperations.cs" />
     <Compile Include="Core\DecorationColorWaveOperations.cs" />
+    <Compile Include="Core\MultiTileOperations.cs" />
     <Compile Include="Core\ExpressionEvaluator.cs" />
     <Compile Include="Core\FormulaOperations.cs" />
     <Compile Include="Core\FilterOrderOperations.cs" />

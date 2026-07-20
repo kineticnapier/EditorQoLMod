@@ -203,6 +203,34 @@ namespace Kiner.ADOFAIEditorQoL.Core
             return changed + "タイルの相対角度を" + multiplier.ToString("0.######") + "倍しました。";
         }
 
+        internal static string OverwriteRelativeAngles(scnEditor editor, IList<PatternToken> tokens)
+        {
+            EnsureFloatLevel(editor);
+            FloorRange range = EditorSelection.GetRange(editor, false);
+            if (tokens == null || tokens.Count != range.Count || tokens.Any(x => x == null || x.Kind != PatternTokenKind.Angle))
+                throw new ArgumentException("選択範囲と同じ数の角度が必要です。");
+
+            using (new EditorUndoScope(editor))
+            {
+                float previous = PreviousAbsolute(editor, range.Start);
+                for (int i = 0; i < tokens.Count; i++)
+                {
+                    float relative = (float)tokens[i].Angle;
+                    if (relative <= 0.00001f) relative = 360f;
+                    if (relative > 360.00001f)
+                        throw new InvalidOperationException("焼き込み角度は0～360で指定してください。");
+                    int floorNumber = range.Start + i;
+                    bool isCcw = editor.floors[floorNumber].isCCW;
+                    float absolute = RelativeToAbsolute(previous, Math.Min(360f, relative), isCcw);
+                    editor.levelData.angleData[floorNumber - 1] = absolute;
+                    previous = absolute;
+                }
+                editor.RemakePath(true, true);
+                EditorSelection.SelectRange(editor, range.Start, range.End);
+            }
+            return range.Count + "タイルの角度を上書きしました。";
+        }
+
         public static string SnapAngles(scnEditor editor, float increment)
         {
             EnsureFloatLevel(editor);

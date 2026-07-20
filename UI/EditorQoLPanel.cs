@@ -125,6 +125,8 @@ namespace Kiner.ADOFAIEditorQoL.UI
         private TMP_InputField decorationNudgeX;
         private TMP_InputField decorationNudgeY;
         private NativeDropdown decorationInterpolateProperty;
+        private TMP_InputField multiTileGroup;
+        private Toggle multiTilePlanets;
         private NativeDropdown eventType;
         private TMP_InputField eventOffset;
         private NativeDropdown shiftOutOfRangeMode;
@@ -587,6 +589,35 @@ namespace Kiner.ADOFAIEditorQoL.UI
             });
 
             BeginCategory(content.transform, "Visuals");
+            Section(content.transform, "マルチタイル生成・焼き込み");
+            CreateText(content.transform,
+                "選択した実タイルをAddObjectの床デコレーションへ変換します。T番号は空欄なら自動採番です。",
+                11f, FontStyles.Normal, TextAlignmentOptions.Left);
+            multiTileGroup = CreateInput(content.transform, false, 40f);
+            TMP_Text multiTileGroupPlaceholder = multiTileGroup.placeholder as TMP_Text;
+            if (multiTileGroupPlaceholder != null) multiTileGroupPlaceholder.text = "グループ名（例: T0 / 空欄で自動）";
+            multiTilePlanets = CreateToggle(content.transform, "始点に青・赤の惑星も生成", true, 235f);
+            Button generateMultiTile = CreateButton(content.transform, "選択タイルからマルチタイル生成", 0f, 40f);
+            generateMultiTile.onClick.AddListener(delegate
+            {
+                Run(delegate
+                {
+                    string generated;
+                    string result = MultiTileOperations.GenerateFromSelectedTiles(editor, multiTileGroup.text,
+                        multiTilePlanets.isOn, out generated);
+                    multiTileGroup.text = generated;
+                    return result;
+                });
+            });
+            CreateText(content.transform,
+                "焼き込みはT番号のtrackAngleを連番順に読み、選択中の実タイルへ適用します。同数ならイベントを維持し、数が違う場合は選択範囲ごと置換します。",
+                10f, FontStyles.Normal, TextAlignmentOptions.Left);
+            Button bakeMultiTile = CreateButton(content.transform, "マルチタイルのリズムを実タイルへ焼き込む", 0f, 40f);
+            bakeMultiTile.onClick.AddListener(delegate
+            {
+                Run(delegate { return MultiTileOperations.BakeToSelectedTiles(editor, multiTileGroup.text); });
+            });
+
             Section(content.transform, "床デコレーションの色ウェーブ");
             CreateText(content.transform, "先に床型の「オブジェクト追加」を2個以上選択してください。", 11f, FontStyles.Normal, TextAlignmentOptions.Left);
             waveDirection = CreateDropdown(content.transform, new[]
