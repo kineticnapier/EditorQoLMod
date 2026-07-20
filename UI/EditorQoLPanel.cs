@@ -17,6 +17,12 @@ namespace Kiner.ADOFAIEditorQoL.UI
             internal string Category;
             internal string Section;
             internal Button Button;
+            internal SectionGroup Group;
+
+            internal string Id
+            {
+                get { return Category + "|" + (Section ?? string.Empty) + "|" + Label; }
+            }
 
             internal string DisplayName
             {
@@ -25,6 +31,17 @@ namespace Kiner.ADOFAIEditorQoL.UI
                     return string.IsNullOrEmpty(Section) ? Label : Section + " › " + Label;
                 }
             }
+        }
+
+        private sealed class SectionGroup
+        {
+            internal string Id;
+            internal string Category;
+            internal string Title;
+            internal Button Header;
+            internal TMP_Text HeaderText;
+            internal GameObject Content;
+            internal bool Collapsed;
         }
 
         private static EditorQoLPanel instance;
@@ -64,15 +81,22 @@ namespace Kiner.ADOFAIEditorQoL.UI
         private readonly List<TMP_InputField> inputFields = new List<TMP_InputField>();
         private readonly List<NativeDropdown> dropdowns = new List<NativeDropdown>();
         private readonly List<CommandEntry> commandEntries = new List<CommandEntry>();
+        private readonly Dictionary<string, SectionGroup> sectionGroups =
+            new Dictionary<string, SectionGroup>(StringComparer.Ordinal);
         private readonly Dictionary<string, List<GameObject>> categoryItems =
             new Dictionary<string, List<GameObject>>(StringComparer.Ordinal);
         private ScrollRect contentScroll;
         private NativeDropdown toolCategory;
         private string buildingCategory;
         private string buildingSection;
+        private Transform buildingSectionParent;
+        private Transform buildingSectionContent;
+        private SectionGroup buildingSectionGroup;
         private int categoryStartChildIndex;
         private TMP_InputField commandSearch;
-        private TMP_Text commandSearchResults;
+        private GameObject commandSearchResults;
+        private GameObject quickFavorites;
+        private GameObject quickRecents;
         private RectTransform pendingCommandTarget;
         private int pendingCommandScrollFrames;
 
@@ -319,9 +343,19 @@ namespace Kiner.ADOFAIEditorQoL.UI
             if (commandPlaceholder != null) commandPlaceholder.text = "機能名を入力してEnter";
             commandSearch.onValueChanged.AddListener(RefreshCommandSearchResults);
             commandSearch.onSubmit.AddListener(OpenFirstMatchingCommand);
-            commandSearchResults = CreateText(content.transform, "", 11f, FontStyles.Normal,
-                TextAlignmentOptions.TopLeft);
-            commandSearchResults.gameObject.SetActive(false);
+            commandSearchResults = CreateVertical(content.transform, "Command search results", 4f, 0, 0, 0, 0);
+            commandSearchResults.SetActive(false);
+
+            CreateText(content.transform, "クイックアクセス", 12f, FontStyles.Bold,
+                TextAlignmentOptions.Left);
+            CreateText(content.transform, "検索候補や履歴の☆でお気に入り登録", 10f, FontStyles.Normal,
+                TextAlignmentOptions.Left);
+            CreateText(content.transform, "★ お気に入り", 11f, FontStyles.Normal,
+                TextAlignmentOptions.Left);
+            quickFavorites = CreateVertical(content.transform, "Favorite commands", 4f, 0, 0, 0, 0);
+            CreateText(content.transform, "最近使った機能", 11f, FontStyles.Normal,
+                TextAlignmentOptions.Left);
+            quickRecents = CreateVertical(content.transform, "Recent commands", 4f, 0, 0, 0, 0);
 
             CreateText(content.transform, "機能カテゴリ", 12f, FontStyles.Bold, TextAlignmentOptions.Left);
             toolCategory = CreateDropdown(content.transform, new[]
@@ -332,6 +366,12 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 new KeyValuePair<string, string>("Utility", "移動・情報")
             }, 40f);
             toolCategory.ValueChanged += ApplyCategoryFilter;
+
+            GameObject sectionButtons = CreateHorizontal(content.transform, "Section visibility buttons", 5f, 38f);
+            Button collapseAll = CreatePlainButton(sectionButtons.transform, "全て閉じる", 0f, 38f);
+            collapseAll.onClick.AddListener(delegate { SetAllSectionsCollapsed(true); });
+            Button expandAll = CreatePlainButton(sectionButtons.transform, "全て開く", 0f, 38f);
+            expandAll.onClick.AddListener(delegate { SetAllSectionsCollapsed(false); });
 
             BeginCategory(content.transform, "Tiles");
             Section(content.transform, "パターン・タイル変形");
@@ -1041,6 +1081,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 HideQoL(false);
                 inspector.ShowInspector(false, true);
             });
+            RefreshQuickAccess();
         }
 
         private void ToggleQoL()
@@ -1059,6 +1100,9 @@ namespace Kiner.ADOFAIEditorQoL.UI
             CaptureBuiltCategoryItems(parent);
             buildingCategory = category;
             buildingSection = null;
+            buildingSectionParent = null;
+            buildingSectionContent = null;
+            buildingSectionGroup = null;
             categoryStartChildIndex = parent == null ? 0 : parent.childCount;
         }
 
@@ -1066,6 +1110,10 @@ namespace Kiner.ADOFAIEditorQoL.UI
         {
             CaptureBuiltCategoryItems(parent);
             buildingCategory = null;
+            buildingSection = null;
+            buildingSectionParent = null;
+            buildingSectionContent = null;
+            buildingSectionGroup = null;
             ApplyCategoryFilter();
         }
 
@@ -1099,7 +1147,48 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 }
             }
 
+            foreach (SectionGroup group in sectionGroups.Values)
+            {
+                if (group.Content != null)
+                    group.Content.SetActive(string.Equals(group.Category, selected, StringComparison.Ordinal) &&
+                                            !group.Collapsed);
+            }
+
             if (contentScroll != null) contentScroll.verticalNormalizedPosition = 1f;
+        }
+
+        private void SetSectionCollapsed(SectionGroup group, bool collapsed, bool save)
+        {
+            if (group == null) return;
+            group.Collapsed = collapsed;
+            EditorQoLPreferences.SetSectionCollapsed(group.Id, collapsed, save);
+            UpdateSectionVisual(group);
+            Canvas.ForceUpdateCanvases();
+        }
+
+        private void SetAllSectionsCollapsed(bool collapsed)
+        {
+            foreach (SectionGroup group in sectionGroups.Values)
+            {
+                group.Collapsed = collapsed;
+                EditorQoLPreferences.SetSectionCollapsed(group.Id, collapsed, false);
+                UpdateSectionVisual(group);
+            }
+            EditorQoLPreferences.Save();
+            Canvas.ForceUpdateCanvases();
+            if (contentScroll != null) contentScroll.verticalNormalizedPosition = 1f;
+            SetStatus(collapsed ? "全セクションを閉じました。" : "全セクションを開きました。");
+        }
+
+        private void UpdateSectionVisual(SectionGroup group)
+        {
+            if (group == null) return;
+            if (group.HeaderText != null)
+                group.HeaderText.text = (group.Collapsed ? "▶ " : "▼ ") + group.Title;
+            string selected = toolCategory == null ? "Tiles" : toolCategory.SelectedValue;
+            if (group.Content != null)
+                group.Content.SetActive(!group.Collapsed &&
+                                        string.Equals(group.Category, selected, StringComparison.Ordinal));
         }
 
         private void ShowQoL()
@@ -1130,6 +1219,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
             inspector.ShowInspector(true, true);
             RefreshSelection();
             RefreshFavoriteDisplay();
+            RefreshQuickAccess();
             RefreshPresetOptions();
             RefreshBookmarks();
             RefreshInterpolationProperties();
@@ -1282,23 +1372,24 @@ namespace Kiner.ADOFAIEditorQoL.UI
         {
             if (commandSearchResults == null) return;
             List<CommandEntry> matches = FindCommands(query).Take(6).ToList();
+            ClearChildren(commandSearchResults.transform);
             if (string.IsNullOrWhiteSpace(query))
             {
-                commandSearchResults.text = string.Empty;
-                commandSearchResults.gameObject.SetActive(false);
+                commandSearchResults.SetActive(false);
                 return;
             }
 
-            commandSearchResults.gameObject.SetActive(true);
+            commandSearchResults.SetActive(true);
             if (matches.Count == 0)
             {
-                commandSearchResults.text = "一致する機能がありません。";
+                CreateText(commandSearchResults.transform, "一致する機能がありません。", 11f,
+                    FontStyles.Normal, TextAlignmentOptions.Left);
                 return;
             }
 
-            commandSearchResults.text = "Enterで開く: " + matches[0].DisplayName +
-                (matches.Count <= 1 ? string.Empty : "\n候補: " +
-                    string.Join(" / ", matches.Skip(1).Select(x => x.DisplayName).ToArray()));
+            CreateText(commandSearchResults.transform, "候補をクリック / Enterで先頭を開く", 10f,
+                FontStyles.Normal, TextAlignmentOptions.Left);
+            foreach (CommandEntry command in matches) CreateCommandShortcut(commandSearchResults.transform, command);
         }
 
         private IEnumerable<CommandEntry> FindCommands(string query)
@@ -1324,14 +1415,89 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 return;
             }
 
+            NavigateToCommand(command);
+        }
+
+        private void NavigateToCommand(CommandEntry command)
+        {
+            if (command == null || command.Button == null) return;
             if (toolCategory != null) toolCategory.SetValue(command.Category);
+            if (command.Group != null && command.Group.Collapsed)
+                SetSectionCollapsed(command.Group, false, true);
             ApplyCategoryFilter();
             pendingCommandTarget = command.Button.GetComponent<RectTransform>();
             pendingCommandScrollFrames = 2;
-            commandSearch.text = string.Empty;
-            commandSearch.DeactivateInputField();
+            if (commandSearch != null)
+            {
+                commandSearch.text = string.Empty;
+                commandSearch.DeactivateInputField();
+            }
             command.Button.Select();
             SetStatus(command.DisplayName + "を開きました。");
+        }
+
+        private void CreateCommandShortcut(Transform parent, CommandEntry command)
+        {
+            if (parent == null || command == null) return;
+            GameObject row = CreateHorizontal(parent, "Command shortcut", 4f, 38f);
+            Button open = CreatePlainButton(row.transform, command.DisplayName, 0f, 38f);
+            open.onClick.AddListener(delegate { NavigateToCommand(command); });
+            string favoriteLabel = EditorQoLPreferences.IsFavorite(command.Id) ? "★" : "☆";
+            Button favorite = CreatePlainButton(row.transform, favoriteLabel, 46f, 38f);
+            favorite.onClick.AddListener(delegate { ToggleCommandFavorite(command); });
+        }
+
+        private void ToggleCommandFavorite(CommandEntry command)
+        {
+            bool added = EditorQoLPreferences.ToggleFavorite(command.Id);
+            SetStatus("「" + command.DisplayName + "」をお気に入り" +
+                      (added ? "に追加" : "から削除") + "しました。");
+            RefreshQuickAccess();
+            RefreshCommandSearchResults(commandSearch == null ? string.Empty : commandSearch.text);
+        }
+
+        private void RecordCommandUse(CommandEntry command)
+        {
+            if (command == null) return;
+            EditorQoLPreferences.RecordRecent(command.Id);
+            RefreshQuickAccess();
+        }
+
+        private void RefreshQuickAccess()
+        {
+            RebuildQuickAccess(quickFavorites, EditorQoLPreferences.FavoriteCommandIds(),
+                "お気に入りはありません。", 5);
+            RebuildQuickAccess(quickRecents, EditorQoLPreferences.RecentCommandIds(),
+                "まだ使用履歴がありません。", 3);
+        }
+
+        private void RebuildQuickAccess(GameObject container, IList<string> commandIds, string emptyText,
+            int maximum)
+        {
+            if (container == null) return;
+            ClearChildren(container.transform);
+            List<CommandEntry> commands = commandIds
+                .Select(id => commandEntries.FirstOrDefault(x => x.Id == id))
+                .Where(x => x != null)
+                .Take(maximum)
+                .ToList();
+            if (commands.Count == 0)
+            {
+                CreateText(container.transform, emptyText, 10f, FontStyles.Normal, TextAlignmentOptions.Left);
+                return;
+            }
+            foreach (CommandEntry command in commands) CreateCommandShortcut(container.transform, command);
+        }
+
+        private static void ClearChildren(Transform parent)
+        {
+            if (parent == null) return;
+            for (int i = parent.childCount - 1; i >= 0; i--)
+            {
+                GameObject child = parent.GetChild(i).gameObject;
+                child.SetActive(false);
+                UnityEngine.Object.Destroy(child);
+            }
         }
 
         private void ScrollToCommandTarget()
@@ -1553,8 +1719,16 @@ namespace Kiner.ADOFAIEditorQoL.UI
         private GameObject CreateObject(string name, Transform parent)
         {
             GameObject obj = new GameObject(name, typeof(RectTransform));
-            obj.transform.SetParent(parent, false);
+            obj.transform.SetParent(ResolveBuildParent(parent), false);
             return obj;
+        }
+
+        private Transform ResolveBuildParent(Transform parent)
+        {
+            return buildingSectionContent != null && buildingSectionParent != null &&
+                   parent == buildingSectionParent
+                ? buildingSectionContent
+                : parent;
         }
 
         private GameObject CreateVertical(Transform parent, string name, float spacing, int left, int right, int top, int bottom)
@@ -1588,7 +1762,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
         private TMP_Text CreateText(Transform parent, string value, float size, FontStyles style, TextAlignmentOptions alignment)
         {
             GameObject obj = new GameObject("Text", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
-            obj.transform.SetParent(parent, false);
+            obj.transform.SetParent(ResolveBuildParent(parent), false);
             TMP_Text text = obj.GetComponent<TMP_Text>();
             text.text = value;
             text.fontSize = Mathf.Max(size, 16f);
@@ -1605,15 +1779,54 @@ namespace Kiner.ADOFAIEditorQoL.UI
 
         private void Section(Transform parent, string title)
         {
+            buildingSectionParent = null;
+            buildingSectionContent = null;
+            buildingSectionGroup = null;
             buildingSection = title;
-            TMP_Text text = CreateText(parent, title, 19f, FontStyles.Bold, TextAlignmentOptions.Left);
-            LayoutElement layout = text.GetComponent<LayoutElement>();
-            layout.minHeight = 32f;
+            string id = (buildingCategory ?? string.Empty) + "|" + title;
+            Button header = CreatePlainButton(parent, title, 0f, 38f);
+            TMP_Text headerText = header.GetComponentInChildren<TMP_Text>(true);
+            GameObject body = CreateVertical(parent, title + " Content", 7f, 0, 0, 0, 5);
+            SectionGroup group = new SectionGroup
+            {
+                Id = id,
+                Category = buildingCategory,
+                Title = title,
+                Header = header,
+                HeaderText = headerText,
+                Content = body,
+                Collapsed = EditorQoLPreferences.IsSectionCollapsed(id)
+            };
+            sectionGroups[id] = group;
+            header.onClick.AddListener(delegate { SetSectionCollapsed(group, !group.Collapsed, true); });
+            buildingSectionParent = parent;
+            buildingSectionContent = body.transform;
+            buildingSectionGroup = group;
+            UpdateSectionVisual(group);
         }
 
         private Button CreateButton(Transform parent, string label, float width, float height)
         {
-            GameObject obj = Instantiate(editor.notificationOkButton.gameObject, parent, false);
+            Button button = CreatePlainButton(parent, label, width, height);
+            if (!string.IsNullOrEmpty(buildingCategory))
+            {
+                CommandEntry entry = new CommandEntry
+                {
+                    Label = label,
+                    Category = buildingCategory,
+                    Section = buildingSection,
+                    Button = button,
+                    Group = buildingSectionGroup
+                };
+                commandEntries.Add(entry);
+                button.onClick.AddListener(delegate { RecordCommandUse(entry); });
+            }
+            return button;
+        }
+
+        private Button CreatePlainButton(Transform parent, string label, float width, float height)
+        {
+            GameObject obj = Instantiate(editor.notificationOkButton.gameObject, ResolveBuildParent(parent), false);
             obj.name = label + " Button";
             obj.SetActive(true);
             Button button = obj.GetComponent<Button>();
@@ -1634,16 +1847,6 @@ namespace Kiner.ADOFAIEditorQoL.UI
             layout.flexibleWidth = width <= 0f ? 1f : 0f;
             if (width > 0f) layout.preferredWidth = width;
 
-            if (!string.IsNullOrEmpty(buildingCategory))
-            {
-                commandEntries.Add(new CommandEntry
-                {
-                    Label = label,
-                    Category = buildingCategory,
-                    Section = buildingSection,
-                    Button = button
-                });
-            }
             return button;
         }
 
@@ -1654,6 +1857,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
             // focus handling, and keyboard behavior used elsewhere in the editor.
             TMP_InputField template = Resources.Load<TMP_InputField>("LevelEditor/SettingsControls/TextControl");
             TMP_InputField input;
+            parent = ResolveBuildParent(parent);
 
             if (template != null)
             {
@@ -1735,6 +1939,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
         private NativeDropdown CreateDropdown(Transform parent,
             IEnumerable<KeyValuePair<string, string>> options, float height)
         {
+            parent = ResolveBuildParent(parent);
             TweakableDropdown template = inspector.GetComponentsInChildren<TweakableDropdown>(true)
                 .Where(x => x != null && x.dropdownItemPrefab != null)
                 .OrderBy(x => x.enumTypeString == "HitSound" ? 2 : (x.enumTypeString == "Ease" ? 1 : 0))

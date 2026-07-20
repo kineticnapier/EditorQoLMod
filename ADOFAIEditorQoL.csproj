@@ -65,6 +65,7 @@
     <Compile Include="Core\FormulaOperations.cs" />
     <Compile Include="Core\FilterOrderOperations.cs" />
     <Compile Include="Core\DropdownFavorites.cs" />
+    <Compile Include="Core\EditorQoLPreferences.cs" />
     <Compile Include="Core\DecorationMarkerTags.cs" />
     <Compile Include="Core\TextMaskOperations.cs" />
     <Compile Include="Core\CustomFontOperations.cs" />

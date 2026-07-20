@@ -19,6 +19,7 @@ namespace Kiner.ADOFAIEditorQoL
             Enabled = true;
             DropdownFavorites.Initialize(ModPath);
             EventPresetStore.Initialize(ModPath);
+            EditorQoLPreferences.Initialize(ModPath);
             harmony = new Harmony(modEntry.Info.Id);
             harmony.PatchAll();
             modEntry.OnToggle = OnToggle;
@@ -47,6 +48,7 @@ namespace Kiner.ADOFAIEditorQoL
             Enabled = false;
             DropdownFavorites.Save();
             EventPresetStore.Save();
+            EditorQoLPreferences.Save();
             RuntimeEffects.Cleanup();
             Pacl2UndoBridge.Cleanup();
             UI.EditorQoLPanel.DestroyCurrent();
