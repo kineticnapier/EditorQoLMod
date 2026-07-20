@@ -144,6 +144,65 @@ namespace Kiner.ADOFAIEditorQoL.Core
             return from.ToString("0.######") + "°を" + to.ToString("0.######") + "°へ" + changed + "件置換しました。";
         }
 
+        public static string MultiplyRelativeAngles(scnEditor editor, float multiplier)
+        {
+            EnsureFloatLevel(editor);
+            if (multiplier <= 0f || multiplier > 100000f || float.IsNaN(multiplier) || float.IsInfinity(multiplier))
+                throw new ArgumentOutOfRangeException("multiplier", "倍率は0より大きく100000以下にしてください。");
+            FloorRange range = EditorSelection.GetRange(editor, false);
+            List<float> scaledRelatives = new List<float>();
+            List<bool> directions = new List<bool>();
+
+            for (int floor = range.Start; floor <= range.End; floor++)
+            {
+                float absolute = editor.levelData.angleData[floor - 1];
+                scrFloor floorObject = editor.floors[floor];
+                directions.Add(floorObject.isCCW);
+                if (IsMidspin(absolute))
+                {
+                    scaledRelatives.Add(999f);
+                    continue;
+                }
+
+                float relative = (float)(scrMisc.GetAngleMoved((double)floorObject.entryangle,
+                    (double)floorObject.exitangle, !floorObject.isCCW) * 57.29577951308232d);
+                if (relative <= 0.00001f) relative = 360f;
+                float scaled = relative * multiplier;
+                if (scaled <= 0.000001f || scaled > 360.00001f)
+                    throw new InvalidOperationException(floor + "番タイルの" + relative.ToString("0.######") +
+                        "°に倍率を掛けると" + scaled.ToString("0.######") +
+                        "°になります。相対角度は0より大きく360以下にしてください。");
+                scaledRelatives.Add(Math.Min(360f, scaled));
+            }
+
+            int changed = 0;
+            using (new EditorUndoScope(editor))
+            {
+                float previous = PreviousAbsolute(editor, range.Start);
+                for (int i = 0; i < scaledRelatives.Count; i++)
+                {
+                    int index = range.Start - 1 + i;
+                    float relative = scaledRelatives[i];
+                    if (IsMidspin(relative))
+                    {
+                        editor.levelData.angleData[index] = 999f;
+                        continue;
+                    }
+
+                    float absolute = RelativeToAbsolute(previous, relative, directions[i]);
+                    if (AngularDistance(editor.levelData.angleData[index], absolute) > 0.000001f) changed++;
+                    editor.levelData.angleData[index] = absolute;
+                    previous = absolute;
+                }
+                if (changed > 0)
+                {
+                    editor.RemakePath(true, true);
+                    EditorSelection.SelectRange(editor, range.Start, range.End);
+                }
+            }
+            return changed + "タイルの相対角度を" + multiplier.ToString("0.######") + "倍しました。";
+        }
+
         public static string SnapAngles(scnEditor editor, float increment)
         {
             EnsureFloatLevel(editor);

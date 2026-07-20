@@ -99,6 +99,16 @@ namespace Kiner.ADOFAIEditorQoL.UI
         private GameObject quickRecents;
         private RectTransform pendingCommandTarget;
         private int pendingCommandScrollFrames;
+        private Toggle operationPreviewToggle;
+        private GameObject operationPreviewBox;
+        private TMP_Text operationPreviewText;
+        private Func<string> pendingOperation;
+        private CommandEntry pendingOperationCommand;
+        private string pendingOperationScope;
+        private float pendingOperationScrollPosition;
+        private bool hasPendingOperationScrollPosition;
+        private CommandEntry activeCommand;
+        private TMP_Text operationHistoryText;
 
         private TMP_Text status;
         private TMP_Text selection;
@@ -110,6 +120,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
         private TMP_InputField replaceAngleFrom;
         private TMP_InputField replaceAngleTo;
         private TMP_InputField replaceAngleTolerance;
+        private TMP_InputField angleMultiplier;
         private TMP_InputField snapAngle;
         private TMP_InputField decorationNudgeX;
         private TMP_InputField decorationNudgeY;
@@ -133,6 +144,13 @@ namespace Kiner.ADOFAIEditorQoL.UI
         private TMP_InputField relativeJump;
         private TMP_InputField selectCount;
         private NativeDropdown bookmarkDropdown;
+        private TMP_InputField selectionRangeName;
+        private NativeDropdown selectionRangeDropdown;
+        private NativeDropdown eventSearchType;
+        private Toggle eventSearchDecorationsToggle;
+        private TMP_InputField eventSearchPage;
+        private NativeDropdown eventSearchDropdown;
+        private TMP_Text eventSearchSummary;
         private Toggle decorationsToggle;
         private Toggle statsSelectionToggle;
         private TMP_Text statisticsText;
@@ -357,6 +375,24 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 TextAlignmentOptions.Left);
             quickRecents = CreateVertical(content.transform, "Recent commands", 4f, 0, 0, 0, 0);
 
+            operationPreviewToggle = CreateToggle(content.transform, "譜面書き換え前にプレビュー",
+                EditorQoLPreferences.PreviewEnabled, 245f);
+            operationPreviewToggle.onValueChanged.AddListener(delegate(bool value)
+            {
+                EditorQoLPreferences.PreviewEnabled = value;
+                if (!value) CancelPendingOperation(false);
+            });
+            operationPreviewBox = CreateVertical(content.transform, "Operation preview", 5f, 8, 8, 6, 6);
+            operationPreviewText = CreateText(operationPreviewBox.transform, "", 11f, FontStyles.Normal,
+                TextAlignmentOptions.TopLeft);
+            GameObject previewButtons = CreateHorizontal(operationPreviewBox.transform,
+                "Operation preview buttons", 5f, 38f);
+            Button confirmPreview = CreatePlainButton(previewButtons.transform, "確定して実行", 0f, 38f);
+            confirmPreview.onClick.AddListener(ConfirmPendingOperation);
+            Button cancelPreview = CreatePlainButton(previewButtons.transform, "キャンセル", 0f, 38f);
+            cancelPreview.onClick.AddListener(delegate { CancelPendingOperation(true); });
+            operationPreviewBox.SetActive(false);
+
             CreateText(content.transform, "機能カテゴリ", 12f, FontStyles.Bold, TextAlignmentOptions.Left);
             toolCategory = CreateDropdown(content.transform, new[]
             {
@@ -468,6 +504,24 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 });
             });
             CreateText(content.transform, "左から: 置換元 / 置換先 / 許容誤差", 10f, FontStyles.Normal, TextAlignmentOptions.Left);
+
+            GameObject multiplyAngleRow = CreateHorizontal(content.transform, "Multiply relative angles", 5f, 40f);
+            CreateText(multiplyAngleRow.transform, "相対角度の倍率", 12f, FontStyles.Normal,
+                TextAlignmentOptions.MidlineLeft);
+            angleMultiplier = CreateInput(multiplyAngleRow.transform, false, 40f);
+            angleMultiplier.text = "0.5";
+            SetWidth(angleMultiplier.gameObject, 72f);
+            Button multiplyAngles = CreateButton(multiplyAngleRow.transform, "倍率変換", 100f, 40f);
+            multiplyAngles.onClick.AddListener(delegate
+            {
+                Run(delegate
+                {
+                    return TileTransformOperations.MultiplyRelativeAngles(editor,
+                        ParseFloat(angleMultiplier.text, 0.000001f, 100000f));
+                });
+            });
+            CreateText(content.transform, "例: 0.5で90°→45°、360°→180°。999（Midspin）は維持します。", 10f,
+                FontStyles.Normal, TextAlignmentOptions.Left);
 
             GameObject snapReverseRow = CreateHorizontal(content.transform, "Snap and reverse angles", 5f, 40f);
             snapAngle = CreateInput(snapReverseRow.transform, false, 40f);
@@ -994,6 +1048,98 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 Run(delegate { return NavigationOperations.FindEvent(editor, SelectedEventType(), true); });
             });
 
+            Section(content.transform, "イベント検索一覧");
+            CreateText(content.transform, "指定した種類の出現位置を100件ずつ一覧表示します。", 11f,
+                FontStyles.Normal, TextAlignmentOptions.Left);
+            eventSearchType = CreateDropdown(content.transform,
+                JapaneseLocalization.EventOptions(EditableEventTypeNames()), 40f);
+            eventSearchType.SetValue(LevelEventType.SetSpeed.ToString());
+            eventSearchDecorationsToggle = CreateToggle(content.transform, "装飾イベントも含める", true, 205f);
+            GameObject eventSearchPageRow = CreateHorizontal(content.transform, "Event search page", 5f, 40f);
+            CreateText(eventSearchPageRow.transform, "ページ", 12f, FontStyles.Normal,
+                TextAlignmentOptions.MidlineLeft);
+            eventSearchPage = CreateInput(eventSearchPageRow.transform, false, 40f);
+            eventSearchPage.text = "1";
+            SetWidth(eventSearchPage.gameObject, 58f);
+            Button previousEventPage = CreateButton(eventSearchPageRow.transform, "前", 54f, 40f);
+            previousEventPage.onClick.AddListener(delegate
+            {
+                Run(delegate
+                {
+                    eventSearchPage.text = Math.Max(1, ParseInt(eventSearchPage.text, 1, int.MaxValue) - 1).ToString();
+                    RefreshEventSearch();
+                    return "前のイベント一覧ページを表示しました。";
+                });
+            });
+            Button nextEventPage = CreateButton(eventSearchPageRow.transform, "次", 54f, 40f);
+            nextEventPage.onClick.AddListener(delegate
+            {
+                Run(delegate
+                {
+                    eventSearchPage.text = (ParseInt(eventSearchPage.text, 1, int.MaxValue) + 1).ToString();
+                    RefreshEventSearch();
+                    return "次のイベント一覧ページを表示しました。";
+                });
+            });
+            eventSearchDropdown = CreateDropdown(content.transform, new[]
+            {
+                new KeyValuePair<string, string>("__none__", "該当イベントなし")
+            }, 40f);
+            eventSearchSummary = CreateText(content.transform, "", 11f, FontStyles.Normal,
+                TextAlignmentOptions.Left);
+            GameObject eventSearchButtons = CreateHorizontal(content.transform, "Event search buttons", 5f, 40f);
+            Button refreshEventSearch = CreateButton(eventSearchButtons.transform, "一覧を更新", 0f, 40f);
+            refreshEventSearch.onClick.AddListener(delegate
+            {
+                Run(delegate
+                {
+                    RefreshEventSearch();
+                    return "イベント一覧を更新しました。";
+                });
+            });
+            Button goToListedEvent = CreateButton(eventSearchButtons.transform, "選択位置へ移動", 0f, 40f);
+            goToListedEvent.onClick.AddListener(delegate
+            {
+                Run(delegate { return EventSearchOperations.GoTo(editor, eventSearchDropdown.SelectedValue); });
+            });
+            eventSearchType.ValueChanged += RefreshEventSearch;
+            eventSearchDecorationsToggle.onValueChanged.AddListener(delegate(bool value) { RefreshEventSearch(); });
+            RefreshEventSearch();
+
+            Section(content.transform, "選択範囲プリセット");
+            CreateText(content.transform, "現在の譜面ファイルごとに、名前付きの選択範囲を保存します。", 11f,
+                FontStyles.Normal, TextAlignmentOptions.Left);
+            selectionRangeName = CreateInput(content.transform, false, 40f);
+            TMP_Text selectionRangePlaceholder = selectionRangeName.placeholder as TMP_Text;
+            if (selectionRangePlaceholder != null) selectionRangePlaceholder.text = "範囲名（例: サビ）";
+            selectionRangeDropdown = CreateDropdown(content.transform, SelectionRangeStore.Options(), 40f);
+            GameObject selectionRangeButtons = CreateHorizontal(content.transform, "Selection range buttons", 5f, 40f);
+            Button saveSelectionRange = CreateButton(selectionRangeButtons.transform, "保存 / 上書き", 0f, 40f);
+            saveSelectionRange.onClick.AddListener(delegate
+            {
+                Run(delegate
+                {
+                    string result = SelectionRangeStore.SaveSelection(editor, selectionRangeName.text);
+                    RefreshSelectionRanges();
+                    return result;
+                });
+            });
+            Button goSelectionRange = CreateButton(selectionRangeButtons.transform, "範囲を選択", 0f, 40f);
+            goSelectionRange.onClick.AddListener(delegate
+            {
+                Run(delegate { return SelectionRangeStore.Select(editor, selectionRangeDropdown.SelectedValue); });
+            });
+            Button deleteSelectionRange = CreateButton(content.transform, "保存範囲を削除", 0f, 40f);
+            deleteSelectionRange.onClick.AddListener(delegate
+            {
+                Run(delegate
+                {
+                    string result = SelectionRangeStore.Delete(selectionRangeDropdown.SelectedValue);
+                    RefreshSelectionRanges();
+                    return result;
+                });
+            });
+
             Section(content.transform, "Bookmark一覧");
             bookmarkDropdown = CreateDropdown(content.transform, NavigationOperations.BookmarkOptions(editor), 40f);
             GameObject bookmarkButtons = CreateHorizontal(content.transform, "Bookmark buttons", 5f, 40f);
@@ -1045,6 +1191,29 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 });
             });
             statisticsText = CreateText(content.transform, "", 12f, FontStyles.Normal, TextAlignmentOptions.TopLeft);
+
+            Section(content.transform, "操作履歴");
+            CreateText(content.transform, "直近30件を保存し、ここには新しい順で12件表示します。", 11f,
+                FontStyles.Normal, TextAlignmentOptions.Left);
+            GameObject historyButtons = CreateHorizontal(content.transform, "Operation history buttons", 5f, 40f);
+            Button refreshHistory = CreateButton(historyButtons.transform, "履歴を更新", 0f, 40f);
+            refreshHistory.onClick.AddListener(delegate
+            {
+                activeCommand = null;
+                RefreshOperationHistory();
+                SetStatus("操作履歴を更新しました。");
+            });
+            Button clearHistory = CreateButton(historyButtons.transform, "履歴を消去", 0f, 40f);
+            clearHistory.onClick.AddListener(delegate
+            {
+                activeCommand = null;
+                EditorQoLPreferences.ClearOperationHistory();
+                RefreshOperationHistory();
+                SetStatus("操作履歴を消去しました。");
+            });
+            operationHistoryText = CreateText(content.transform, "", 11f, FontStyles.Normal,
+                TextAlignmentOptions.TopLeft);
+            RefreshOperationHistory();
 
             Section(content.transform, "診断・安全修復");
             CreateText(content.transform,
@@ -1222,11 +1391,15 @@ namespace Kiner.ADOFAIEditorQoL.UI
             RefreshQuickAccess();
             RefreshPresetOptions();
             RefreshBookmarks();
+            RefreshSelectionRanges();
+            RefreshEventSearch();
+            RefreshOperationHistory();
             RefreshInterpolationProperties();
         }
 
         private void HideQoL(bool hideInspector)
         {
+            CancelPendingOperation(false);
             showingQoL = false;
             if (contentRoot != null) contentRoot.SetActive(false);
             SetTabSelected(false);
@@ -1347,14 +1520,127 @@ namespace Kiner.ADOFAIEditorQoL.UI
 
         private void Run(Func<string> action)
         {
+            CommandEntry command = activeCommand;
+            activeCommand = null;
+            if (pendingOperation != null) CancelPendingOperation(false);
+            if (action == null) return;
+            if (operationPreviewToggle != null && operationPreviewToggle.isOn && RequiresPreview(command))
+            {
+                pendingOperation = action;
+                pendingOperationCommand = command;
+                pendingOperationScope = CurrentOperationScope();
+                if (contentScroll != null)
+                {
+                    pendingOperationScrollPosition = contentScroll.verticalNormalizedPosition;
+                    hasPendingOperationScrollPosition = true;
+                }
+                if (operationPreviewText != null)
+                    operationPreviewText.text = "実行前プレビュー\n" + command.DisplayName + "\n" +
+                                                pendingOperationScope +
+                                                "\n\n［確定して実行］を押すまで譜面は変更されません。";
+                if (operationPreviewBox != null) operationPreviewBox.SetActive(true);
+                if (contentScroll != null) contentScroll.verticalNormalizedPosition = 1f;
+                SetStatus("操作内容を確認してください。");
+                return;
+            }
+            ExecuteOperation(command, action);
+        }
+
+        private void ConfirmPendingOperation()
+        {
+            if (pendingOperation == null) return;
+            string currentScope = CurrentOperationScope();
+            if (!string.Equals(currentScope, pendingOperationScope, StringComparison.Ordinal))
+            {
+                pendingOperationScope = currentScope;
+                if (operationPreviewText != null)
+                    operationPreviewText.text = "対象が変わったため再確認してください。\n" +
+                                                pendingOperationCommand.DisplayName + "\n" + currentScope +
+                                                "\n\nもう一度［確定して実行］を押してください。";
+                SetStatus("対象範囲が変わりました。もう一度確認してください。");
+                return;
+            }
+            Func<string> action = pendingOperation;
+            CommandEntry command = pendingOperationCommand;
+            pendingOperation = null;
+            pendingOperationCommand = null;
+            pendingOperationScope = null;
+            if (operationPreviewBox != null) operationPreviewBox.SetActive(false);
+            ExecuteOperation(command, action);
+            RestorePendingOperationScroll();
+        }
+
+        private void CancelPendingOperation(bool showStatus)
+        {
+            pendingOperation = null;
+            pendingOperationCommand = null;
+            pendingOperationScope = null;
+            if (operationPreviewBox != null) operationPreviewBox.SetActive(false);
+            RestorePendingOperationScroll();
+            if (showStatus) SetStatus("操作をキャンセルしました。");
+        }
+
+        private void RestorePendingOperationScroll()
+        {
+            if (hasPendingOperationScrollPosition && contentScroll != null)
+                contentScroll.verticalNormalizedPosition = pendingOperationScrollPosition;
+            hasPendingOperationScrollPosition = false;
+        }
+
+        private void ExecuteOperation(CommandEntry command, Func<string> action)
+        {
+            string commandName = command == null ? "操作" : command.DisplayName;
+            string scope = CurrentOperationScope(RequiresPreview(command));
             try
             {
-                SetStatus(action());
+                string result = action();
+                SetStatus(result);
+                if (command != null) EditorQoLPreferences.RecordRecent(command.Id);
+                EditorQoLPreferences.AddOperationHistory(commandName, scope, result, true);
                 RefreshSelection();
             }
             catch (Exception ex)
             {
-                SetStatus("エラー: " + ex.Message);
+                string result = "エラー: " + ex.Message;
+                SetStatus(result);
+                EditorQoLPreferences.AddOperationHistory(commandName, scope, result, false);
+            }
+            RefreshQuickAccess();
+            RefreshOperationHistory();
+        }
+
+        private bool RequiresPreview(CommandEntry command)
+        {
+            if (command == null) return false;
+            if (command.Category == "Tiles") return true;
+            if (command.Category == "Visuals") return command.Label != "一覧を更新";
+            if (command.Category == "Events")
+            {
+                if (command.Section == "イベント一括操作")
+                    return command.Label != "同種類イベントを本家Inspectorで一括編集";
+                if (command.Section == "イベントプリセット") return command.Label == "範囲へ適用";
+                return command.Section == "数式による一括編集" || command.Section == "イベント値の補間";
+            }
+            return command.Category == "Utility" && command.Label == "安全修復";
+        }
+
+        private string CurrentOperationScope(bool includeEventCounts = true)
+        {
+            if (editor == null) return "対象: 不明";
+            try
+            {
+                FloorRange range = EditorSelection.GetRange(editor, true);
+                if (!includeEventCounts)
+                    return "対象: " + range.Start + "～" + range.End + "（" + range.Count + "タイル）";
+                int events = editor.events.Count(x => x.floor >= range.Start && x.floor <= range.End);
+                int decorations = editor.decorations.Count(x => x.floor >= range.Start && x.floor <= range.End);
+                return "対象: " + range.Start + "～" + range.End + "（" + range.Count + "タイル）" +
+                       " / 範囲内イベント " + events + "件 / 装飾 " + decorations + "件";
+            }
+            catch
+            {
+                int decorations = editor.selectedDecorations == null ? 0 : editor.selectedDecorations.Count;
+                return decorations > 0 ? "対象: 選択中の装飾 " + decorations + "件" : "対象: 選択なし";
             }
         }
 
@@ -1459,8 +1745,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
         private void RecordCommandUse(CommandEntry command)
         {
             if (command == null) return;
-            EditorQoLPreferences.RecordRecent(command.Id);
-            RefreshQuickAccess();
+            activeCommand = command;
         }
 
         private void RefreshQuickAccess()
@@ -1602,6 +1887,40 @@ namespace Kiner.ADOFAIEditorQoL.UI
         {
             if (bookmarkDropdown != null && editor != null)
                 bookmarkDropdown.SetOptions(NavigationOperations.BookmarkOptions(editor));
+        }
+
+        private void RefreshSelectionRanges()
+        {
+            if (selectionRangeDropdown != null) selectionRangeDropdown.SetOptions(SelectionRangeStore.Options());
+        }
+
+        private void RefreshEventSearch()
+        {
+            if (editor == null || eventSearchType == null || eventSearchDropdown == null ||
+                eventSearchPage == null || eventSearchDecorationsToggle == null) return;
+            try
+            {
+                int page;
+                if (!int.TryParse(eventSearchPage.text, out page) || page < 1) page = 1;
+                EventOccurrencePage result = EventSearchOperations.GetPage(editor,
+                    EventOperations.ParseEventType(eventSearchType.SelectedValue),
+                    eventSearchDecorationsToggle.isOn, page);
+                eventSearchPage.text = result.Page.ToString();
+                eventSearchDropdown.SetOptions(result.Options);
+                if (eventSearchSummary != null)
+                    eventSearchSummary.text = "全" + result.Total + "件 / " + result.Page + " / " +
+                                              result.PageCount + "ページ";
+            }
+            catch (Exception ex)
+            {
+                if (eventSearchSummary != null) eventSearchSummary.text = "取得エラー: " + ex.Message;
+            }
+        }
+
+        private void RefreshOperationHistory()
+        {
+            if (operationHistoryText != null)
+                operationHistoryText.text = EditorQoLPreferences.OperationHistoryText(12);
         }
 
         private void RefreshFormulaProperties()
@@ -1795,7 +2114,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 Header = header,
                 HeaderText = headerText,
                 Content = body,
-                Collapsed = EditorQoLPreferences.IsSectionCollapsed(id)
+                Collapsed = EditorQoLPreferences.GetSectionCollapsed(id, DefaultSectionCollapsed(title))
             };
             sectionGroups[id] = group;
             header.onClick.AddListener(delegate { SetSectionCollapsed(group, !group.Collapsed, true); });
@@ -1803,6 +2122,11 @@ namespace Kiner.ADOFAIEditorQoL.UI
             buildingSectionContent = body.transform;
             buildingSectionGroup = group;
             UpdateSectionVisual(group);
+        }
+
+        private static bool DefaultSectionCollapsed(string title)
+        {
+            return title == "イベント検索一覧" || title == "選択範囲プリセット" || title == "操作履歴";
         }
 
         private Button CreateButton(Transform parent, string label, float width, float height)
