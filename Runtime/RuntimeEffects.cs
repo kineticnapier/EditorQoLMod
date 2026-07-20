@@ -13,6 +13,11 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             SpriteAlphaMaskUtils.doRefreshMaskCache = true;
         }
 
+        internal static void CleanupTutorialBackground()
+        {
+            DestroyRuntimeComponents<TutorialBackgroundRuntime>();
+        }
+
         internal static void ReactivateCurrentScene()
         {
             scnEditor editor = scnEditor.instance;

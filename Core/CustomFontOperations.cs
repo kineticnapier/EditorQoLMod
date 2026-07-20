@@ -49,6 +49,11 @@ namespace Kiner.ADOFAIEditorQoL.Core
                 StringComparison.OrdinalIgnoreCase);
         }
 
+        internal static bool IsSupportedFontFile(string path)
+        {
+            return OpenTypeNameReader.IsSupportedFontFile(path);
+        }
+
         public static string Apply(scnEditor editor, string family)
         {
             if (editor == null) throw new ArgumentNullException("editor");
@@ -117,27 +122,19 @@ namespace Kiner.ADOFAIEditorQoL.Core
                     {
                         string name = unityNames[i];
                         result.Add(name, new[] { name }, true);
-
-                        // Unity 2022 exposes the actual OS font file paths. When the
-                        // arrays line up, remember the file so the runtime can construct
-                        // Font from the file itself instead of asking Unity to resolve a
-                        // Windows display name (which silently fell back for some fonts).
-                        if (unityPaths != null && unityPaths.Length == unityNames.Length &&
-                            i < unityPaths.Length && File.Exists(unityPaths[i]))
-                        {
-                            result.AddFontFile(name, unityPaths[i], new[] { name });
-                        }
                     }
                 }
 
-                // Even if the name/path arrays do not line up, index every returned
-                // path by its filename. Registry/GDI aliases can then connect the
-                // selected display name to the actual file.
+                // Unity does not guarantee that GetOSInstalledFontNames and
+                // GetPathsToOSFonts use the same order. Pairing both arrays by index
+                // made every entry after the first ordering difference load another
+                // font file. Index paths only by information derived from the path;
+                // registry/GDI aliases connect a display name to its actual file.
                 if (unityPaths != null)
                 {
                     foreach (string path in unityPaths)
                     {
-                        if (string.IsNullOrEmpty(path) || !File.Exists(path)) continue;
+                        if (!OpenTypeNameReader.IsSupportedFontFile(path)) continue;
                         string stem = Path.GetFileNameWithoutExtension(path);
                         result.AddFontFile(stem, path, new[]
                         {
@@ -226,20 +223,20 @@ namespace Kiner.ADOFAIEditorQoL.Core
         {
             string file = Environment.ExpandEnvironmentVariables((value ?? string.Empty).Trim().Trim('"'));
             if (string.IsNullOrEmpty(file)) return null;
-            if (Path.IsPathRooted(file) && File.Exists(file)) return file;
+            if (Path.IsPathRooted(file) && OpenTypeNameReader.IsSupportedFontFile(file)) return file;
 
             string windowsFonts = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts", file);
-            if (File.Exists(windowsFonts)) return windowsFonts;
+            if (OpenTypeNameReader.IsSupportedFontFile(windowsFonts)) return windowsFonts;
 
             string localFonts = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "Microsoft", "Windows", "Fonts", file);
-            if (File.Exists(localFonts)) return localFonts;
+            if (OpenTypeNameReader.IsSupportedFontFile(localFonts)) return localFonts;
 
             if (userFont)
             {
                 string profileFonts = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                     "AppData", "Local", "Microsoft", "Windows", "Fonts", file);
-                if (File.Exists(profileFonts)) return profileFonts;
+                if (OpenTypeNameReader.IsSupportedFontFile(profileFonts)) return profileFonts;
             }
             return null;
         }
@@ -406,7 +403,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
 
             internal void AddFontFile(string displayName, string path, IEnumerable<string> aliases)
             {
-                if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;
+                if (!OpenTypeNameReader.IsSupportedFontFile(path)) return;
 
                 AddFileKey(displayName, path);
                 AddFileKey(StripStyleSuffix(displayName), path);
@@ -581,9 +578,38 @@ namespace Kiner.ADOFAIEditorQoL.Core
                 1, 2, 4, 6, 16, 17
             };
 
+            internal static bool IsSupportedFontFile(string path)
+            {
+                if (string.IsNullOrEmpty(path) || !File.Exists(path)) return false;
+                try
+                {
+                    using (FileStream stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    {
+                        if (stream.Length < 12) return false;
+                        byte[] signature = new byte[4];
+                        if (stream.Read(signature, 0, signature.Length) != signature.Length) return false;
+                        return (signature[0] == 0 && signature[1] == 1 &&
+                                signature[2] == 0 && signature[3] == 0) ||
+                               (signature[0] == 'O' && signature[1] == 'T' &&
+                                signature[2] == 'T' && signature[3] == 'O') ||
+                               (signature[0] == 't' && signature[1] == 't' &&
+                                signature[2] == 'c' && signature[3] == 'f') ||
+                               (signature[0] == 't' && signature[1] == 'r' &&
+                                signature[2] == 'u' && signature[3] == 'e') ||
+                               (signature[0] == 't' && signature[1] == 'y' &&
+                                signature[2] == 'p' && signature[3] == '1');
+                    }
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+
             internal static IEnumerable<string> ReadNames(string path)
             {
                 List<string> result = new List<string>();
+                if (!IsSupportedFontFile(path)) return result;
                 try
                 {
                     byte[] data = File.ReadAllBytes(path);

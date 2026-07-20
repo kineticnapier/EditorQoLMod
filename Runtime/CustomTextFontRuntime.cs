@@ -71,6 +71,12 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
                 if (selectedFont == null)
                 {
                     WarnOnce("フォント「" + family + "」の実ファイルとWindows名をUnityで解決できませんでした。標準フォントを維持します。");
+                    if (originalFontCaptured && originalFont != null)
+                    {
+                        appliedFont = null;
+                        text.font = originalFont;
+                        text.SetAllDirty();
+                    }
                     return;
                 }
 
@@ -95,8 +101,10 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
                 bool direct = PrepareAndCheckCharacters(selectedFont, characters,
                     text.fontSize, text.fontStyle, out missingGlyphs);
                 Font result = selectedFont;
+                int resultMissing = missingGlyphs;
+                bool symbolFont = IsLegacySymbolFont(family, candidates, reportedName);
 
-                if (!direct)
+                if (!direct && !symbolFont)
                 {
                     // Only use an OS fallback chain when the real file-backed font has
                     // genuinely failed to provide at least one requested glyph. Include
@@ -119,15 +127,35 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
                         }
                     }
 
-                    // Do not silently throw away a successfully loaded file font. The
-                    // fallback object is accepted only when it can actually provide all
-                    // currently displayed glyphs; otherwise keep the selected font so
-                    // supported characters still use the requested face.
+                    // Prefer the font that can draw the greatest number of characters.
+                    // Requiring a fallback to cover every character left a completely
+                    // unsupported selected font assigned, which made the whole Text
+                    // object appear blank for a number of Windows fonts.
                     int fallbackMissing;
-                    if (fallbackFont != null && PrepareAndCheckCharacters(fallbackFont, characters,
-                        text.fontSize, text.fontStyle, out fallbackMissing))
+                    if (fallbackFont != null)
                     {
-                        result = fallbackFont;
+                        PrepareAndCheckCharacters(fallbackFont, characters,
+                            text.fontSize, text.fontStyle, out fallbackMissing);
+                        if (fallbackMissing < resultMissing)
+                        {
+                            result = fallbackFont;
+                            resultMissing = fallbackMissing;
+                        }
+                    }
+
+                    // The original ADOFAI font is the final safety net. If both the
+                    // requested face and the composite font fail, do not leave an
+                    // unreadable font assigned to the decoration.
+                    if (resultMissing > 0 && originalFontCaptured && originalFont != null)
+                    {
+                        int originalMissing;
+                        PrepareAndCheckCharacters(originalFont, characters,
+                            text.fontSize, text.fontStyle, out originalMissing);
+                        if (originalMissing < resultMissing)
+                        {
+                            result = originalFont;
+                            resultMissing = originalMissing;
+                        }
                     }
                 }
 
@@ -147,6 +175,8 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
                                     " (candidate=" + workingCandidate +
                                     ", mode=" + (ReferenceEquals(appliedFont, selectedFont) ? "direct-file" : "fallback-chain") +
                                     ", selectedMissing=" + missingGlyphs +
+                                    ", assignedMissing=" + resultMissing +
+                                    ", symbol=" + (symbolFont ? "yes" : "no") +
                                     ", assigned=" + (text.font == appliedFont ? "yes" : "no") + ")" +
                                     (string.IsNullOrEmpty(reported) ? string.Empty : " [" + reported + "]"));
                 }
@@ -173,7 +203,7 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             // return a valid-looking Font object while silently rendering another OS
             // font when the supplied Windows display name is not the name Unity uses.
             foreach (string path in (paths ?? Enumerable.Empty<string>())
-                .Where(x => !string.IsNullOrWhiteSpace(x) && File.Exists(x))
+                .Where(x => !string.IsNullOrWhiteSpace(x) && CustomFontOperations.IsSupportedFontFile(x))
                 .Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 string cacheKey = path;
@@ -193,7 +223,7 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
                 }
 
                 if (font == null) continue;
-                if (!IsRequestedFace(font, candidateArray)) continue;
+                if (!IsRequestedFace(font, candidateArray, true)) continue;
 
                 workingCandidate = path;
                 reportedName = PreferredResolvedName(font, Path.GetFileNameWithoutExtension(path));
@@ -210,7 +240,7 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
                     try
                     {
                         font = Font.CreateDynamicFontFromOSFont(candidate, size);
-                        if (font != null && IsRequestedFace(font, candidateArray))
+                        if (font != null && IsRequestedFace(font, candidateArray, false))
                             SingleFontCache[cacheKey] = font;
                         else
                             font = null;
@@ -231,11 +261,12 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             return null;
         }
 
-        private static bool IsRequestedFace(Font font, IEnumerable<string> acceptedNames)
+        private static bool IsRequestedFace(Font font, IEnumerable<string> acceptedNames,
+            bool acceptUnreportedFileFont)
         {
             if (font == null) return false;
             string[] reported = font.fontNames;
-            if (reported == null || reported.Length == 0) return true;
+            if (reported == null || reported.Length == 0) return acceptUnreportedFileFont;
 
             foreach (string actual in reported)
             {
@@ -313,6 +344,28 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             AddUnique(result, reportedName);
             foreach (string fallback in CommonFallbacks) AddUnique(result, fallback);
             return result.ToArray();
+        }
+
+        private static bool IsLegacySymbolFont(string requested, IEnumerable<string> candidates,
+            string reportedName)
+        {
+            List<string> names = new List<string>();
+            AddUnique(names, requested);
+            AddUnique(names, reportedName);
+            if (candidates != null)
+            {
+                foreach (string candidate in candidates) AddUnique(names, candidate);
+            }
+
+            foreach (string name in names)
+            {
+                string normalized = name.Replace(" ", string.Empty).Replace("-", string.Empty);
+                if (normalized.StartsWith("Wingdings", StringComparison.OrdinalIgnoreCase) ||
+                    normalized.StartsWith("Webdings", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(normalized, "Symbol", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
         }
 
         private static void AddUnique(ICollection<string> values, string value)

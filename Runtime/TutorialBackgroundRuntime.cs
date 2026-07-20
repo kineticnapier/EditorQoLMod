@@ -12,6 +12,7 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
     /// GameObject is disabled when a custom image background is used, so attaching
     /// the updater to that object prevents Update from running at all.
     /// </summary>
+    [DefaultExecutionOrder(10000)]
     public sealed class TutorialBackgroundRuntime : MonoBehaviour, IRuntimeEffect
     {
         private scnGame game;
@@ -33,9 +34,17 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
         private Color baseShape = Color.white;
         private Color baseCamera = Color.black;
         private bool baseCaptured;
+        private Color desiredTile = Color.white;
+        private Color desiredShape = Color.white;
+        private Color desiredCamera = Color.black;
+        private bool tileControlled;
+        private bool shapeControlled;
+        private bool cameraControlled;
+        private bool loggedRuntimeState;
 
         internal void Configure(scnGame source)
         {
+            enabled = true;
             game = source;
             background = source == null ? null : source.tutorialBackground;
             ResetRuntime(true, 2);
@@ -43,6 +52,7 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
 
         internal void RefreshAfterBackgroundSetup()
         {
+            enabled = true;
             if (game == null) game = scnGame.instance;
             if (game != null) background = game.tutorialBackground;
             ResetRuntime(true, 2);
@@ -57,10 +67,16 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             tweenDuration = 0f;
             captureBaseOnNextRefresh = captureBase;
             refreshDelayFrames = Math.Max(0, delayFrames);
-            if (captureBase) baseCaptured = false;
+            if (captureBase)
+            {
+                baseCaptured = false;
+                tileControlled = false;
+                shapeControlled = false;
+                cameraControlled = false;
+            }
         }
 
-        private void Update()
+        private void LateUpdate()
         {
             if (!Main.Enabled) return;
             if (game == null) game = scnGame.instance;
@@ -80,12 +96,28 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             int fingerprint = GetFingerprint(commands);
             int floor = GetCurrentFloor();
 
-            if (!initialized || fingerprint != commandFingerprint)
+            if (!loggedRuntimeState)
+            {
+                loggedRuntimeState = true;
+                int shapes = background.elementRenderers == null ? 0 : background.elementRenderers.Count;
+                Main.Logger.Log("Tutorial background runtime ready: commands=" + commands.Count +
+                                ", floor=" + floor +
+                                ", tileRenderer=" + (background.tileRenderer == null ? "no" : "yes") +
+                                ", shapeRenderers=" + shapes +
+                                ", triangleRenderer=" + (background.triangleRenderer == null ? "no" : "yes") + ".");
+            }
+
+            if (!initialized)
             {
                 if (captureBaseOnNextRefresh || !baseCaptured) CaptureBaseColors();
-                ApplyStateForFloor(floor, commands);
+                ApplyStateForFloor(floor, commands, true);
                 commandFingerprint = fingerprint;
                 captureBaseOnNextRefresh = false;
+            }
+            else if (fingerprint != commandFingerprint)
+            {
+                ApplyStateForFloor(floor, commands, false);
+                commandFingerprint = fingerprint;
             }
             else if (floor != lastFloor)
             {
@@ -93,71 +125,108 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             }
 
             UpdateTween();
+            ApplyControlledColors();
         }
 
         private static bool IsLevelReady()
         {
             return scnGame.instance != null && scnGame.instance.levelData != null &&
+                   ADOBase.conductor != null && ADOBase.conductor.crotchetAtStart > 0d &&
                    scrLevelMaker.instance != null && scrLevelMaker.instance.listFloors != null &&
                    scrLevelMaker.instance.listFloors.Count > 0;
         }
 
         private static int GetCurrentFloor()
         {
-            if (ADOBase.controller != null) return Math.Max(0, ADOBase.controller.currentFloorID);
-            if (scrController.instance != null) return Math.Max(0, scrController.instance.currentFloorID);
+            scrController controller = ADOBase.controller == null
+                ? scrController.instance
+                : ADOBase.controller;
+            if (controller != null && controller.currFloor != null)
+                return Math.Max(0, controller.currFloor.seqID);
+            if (controller != null) return Math.Max(0, controller.currentFloorID);
             return 0;
         }
 
-        private void ApplyStateForFloor(int floor, IList<TutorialBackgroundCommand> commands)
+        private void ApplyStateForFloor(int floor, IList<TutorialBackgroundCommand> commands,
+            bool animateCurrentFloor)
         {
             RestoreBaseColors();
+            TutorialBackgroundCommand current = null;
             for (int i = 0; i < commands.Count; i++)
             {
                 TutorialBackgroundCommand command = commands[i];
                 if (command.Floor > floor) break;
-                ApplyImmediately(command);
+                if (animateCurrentFloor && command.Floor == floor && command.DurationBeats > 0f)
+                    current = command;
+                else
+                    ApplyImmediately(command);
             }
 
             lastFloor = floor;
             initialized = true;
             active = null;
             tweenDuration = 0f;
+            if (current != null) Begin(current);
         }
 
         private void ProcessFloorChange(int floor, IList<TutorialBackgroundCommand> commands)
         {
             if (lastFloor < 0 || floor < lastFloor)
             {
-                ApplyStateForFloor(floor, commands);
+                ApplyStateForFloor(floor, commands, false);
                 return;
             }
 
+            TutorialBackgroundCommand current = null;
+            bool crossedCommand = false;
             for (int i = 0; i < commands.Count; i++)
             {
                 TutorialBackgroundCommand command = commands[i];
                 if (command.Floor > lastFloor && command.Floor <= floor)
-                    Begin(command);
+                {
+                    if (!crossedCommand)
+                    {
+                        active = null;
+                        tweenDuration = 0f;
+                        crossedCommand = true;
+                    }
+                    if (command.Floor == floor && command.DurationBeats > 0f)
+                        current = command;
+                    else
+                        ApplyImmediately(command);
+                }
             }
             lastFloor = floor;
+            if (current != null) Begin(current);
         }
 
         private List<TutorialBackgroundCommand> GetCommands()
         {
             List<TutorialBackgroundCommand> result = new List<TutorialBackgroundCommand>();
-            if (game == null || game.events == null) return result;
-
-            foreach (LevelEvent evnt in game.events)
-            {
-                if (evnt == null || !evnt.active) continue;
-                TutorialBackgroundCommand command;
-                if (TutorialBackgroundOperations.TryDecode(evnt, out command)) result.Add(command);
-            }
+            HashSet<LevelEvent> seen = new HashSet<LevelEvent>();
+            AddCommands(game == null ? null : game.events, result, seen);
+            AddCommands(ADOBase.customLevel == null ? null : ADOBase.customLevel.events,
+                result, seen);
             result.Sort(delegate(TutorialBackgroundCommand a, TutorialBackgroundCommand b)
             {
                 return a.Floor.CompareTo(b.Floor);
             });
             return result;
+        }
+
+        private static void AddCommands(IEnumerable<LevelEvent> events,
+            ICollection<TutorialBackgroundCommand> destination, ISet<LevelEvent> seen)
+        {
+            if (events == null) return;
+            foreach (LevelEvent evnt in events)
+            {
+                // EditorComment is metadata and is normally inactive during play.
+                // Decoding the marker is the authoritative filter here.
+                if (evnt == null || !seen.Add(evnt)) continue;
+                TutorialBackgroundCommand command;
+                if (TutorialBackgroundOperations.TryDecode(evnt, out command))
+                    destination.Add(command);
+            }
         }
 
         private static int GetFingerprint(IList<TutorialBackgroundCommand> commands)
@@ -193,6 +262,12 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
         private void RestoreBaseColors()
         {
             if (!baseCaptured) CaptureBaseColors();
+            desiredTile = baseTile;
+            desiredShape = baseShape;
+            desiredCamera = baseCamera;
+            tileControlled = false;
+            shapeControlled = false;
+            cameraControlled = false;
             SetTileColor(baseTile);
             SetShapeColor(baseShape);
             SetCameraColor(baseCamera);
@@ -201,20 +276,50 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
         private void Begin(TutorialBackgroundCommand command)
         {
             active = command;
-            startTile = GetTileColor();
-            startShape = GetShapeColor();
-            startCamera = GetCameraColor();
-            tweenStart = Time.unscaledTime;
+            startTile = tileControlled ? desiredTile : GetTileColor();
+            startShape = shapeControlled ? desiredShape : GetShapeColor();
+            startCamera = cameraControlled ? desiredCamera : GetCameraColor();
+            if (command.TileEnabled)
+            {
+                desiredTile = startTile;
+                tileControlled = true;
+            }
+            if (command.ShapeEnabled)
+            {
+                desiredShape = startShape;
+                shapeControlled = true;
+            }
+            if (command.CameraEnabled)
+            {
+                desiredCamera = startCamera;
+                cameraControlled = true;
+            }
+            tweenStart = Time.time;
             tweenDuration = BeatsToSeconds(command.DurationBeats, command.Floor);
+            Main.Logger.Log("Tutorial background transition started: floor=" + command.Floor +
+                            ", durationBeats=" + command.DurationBeats +
+                            ", durationSeconds=" + tweenDuration + ".");
             if (tweenDuration <= 0f) Apply(1f);
         }
 
         private void ApplyImmediately(TutorialBackgroundCommand command)
         {
             if (command == null) return;
-            if (command.TileEnabled) SetTileColor(command.TileColor);
-            if (command.ShapeEnabled) SetShapeColor(command.ShapeColor);
-            if (command.CameraEnabled) SetCameraColor(command.CameraColor);
+            if (command.TileEnabled)
+            {
+                desiredTile = command.TileColor;
+                tileControlled = true;
+            }
+            if (command.ShapeEnabled)
+            {
+                desiredShape = command.ShapeColor;
+                shapeControlled = true;
+            }
+            if (command.CameraEnabled)
+            {
+                desiredCamera = command.CameraColor;
+                cameraControlled = true;
+            }
         }
 
         private float BeatsToSeconds(float beats, int floor)
@@ -230,7 +335,7 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
         private void UpdateTween()
         {
             if (active == null || tweenDuration <= 0f) return;
-            float progress = Mathf.Clamp01((Time.unscaledTime - tweenStart) / tweenDuration);
+            float progress = Mathf.Clamp01((Time.time - tweenStart) / tweenDuration);
             Apply(Ease(progress, active.Ease));
             if (progress >= 1f)
             {
@@ -243,9 +348,19 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
         private void Apply(float t)
         {
             if (active == null) return;
-            if (active.TileEnabled) SetTileColor(Color.LerpUnclamped(startTile, active.TileColor, t));
-            if (active.ShapeEnabled) SetShapeColor(Color.LerpUnclamped(startShape, active.ShapeColor, t));
-            if (active.CameraEnabled) SetCameraColor(Color.LerpUnclamped(startCamera, active.CameraColor, t));
+            if (active.TileEnabled) desiredTile = Color.LerpUnclamped(startTile, active.TileColor, t);
+            if (active.ShapeEnabled) desiredShape = Color.LerpUnclamped(startShape, active.ShapeColor, t);
+            if (active.CameraEnabled) desiredCamera = Color.LerpUnclamped(startCamera, active.CameraColor, t);
+        }
+
+        private void ApplyControlledColors()
+        {
+            // TutorialBackground and the normal VFX chain update their colors every
+            // frame. Reapply only the channels controlled by our command in a late
+            // execution pass so the tween and its final color are not overwritten.
+            if (tileControlled) SetTileColor(desiredTile);
+            if (shapeControlled) SetShapeColor(desiredShape);
+            if (cameraControlled) SetCameraColor(desiredCamera);
         }
 
         public void StopAndRestore()
@@ -255,6 +370,7 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             if (baseCaptured) RestoreBaseColors();
             initialized = false;
             captureBaseOnNextRefresh = true;
+            enabled = false;
         }
 
         private void OnDestroy()

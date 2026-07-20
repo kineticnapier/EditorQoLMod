@@ -47,7 +47,12 @@ namespace Kiner.ADOFAIEditorQoL.UI
 
         private readonly List<TMP_InputField> inputFields = new List<TMP_InputField>();
         private readonly List<NativeDropdown> dropdowns = new List<NativeDropdown>();
+        private readonly Dictionary<string, List<GameObject>> categoryItems =
+            new Dictionary<string, List<GameObject>>(StringComparer.Ordinal);
         private ScrollRect contentScroll;
+        private NativeDropdown toolCategory;
+        private string buildingCategory;
+        private int categoryStartChildIndex;
 
         private TMP_Text status;
         private TMP_Text selection;
@@ -285,6 +290,17 @@ namespace Kiner.ADOFAIEditorQoL.UI
 
             selection = CreateText(content.transform, "", 13f, FontStyles.Normal, TextAlignmentOptions.Left);
 
+            CreateText(content.transform, "機能カテゴリ", 12f, FontStyles.Bold, TextAlignmentOptions.Left);
+            toolCategory = CreateDropdown(content.transform, new[]
+            {
+                new KeyValuePair<string, string>("Tiles", "タイル・トラック"),
+                new KeyValuePair<string, string>("Visuals", "装飾・見た目"),
+                new KeyValuePair<string, string>("Events", "イベント編集"),
+                new KeyValuePair<string, string>("Utility", "移動・情報")
+            }, 40f);
+            toolCategory.ValueChanged += ApplyCategoryFilter;
+
+            BeginCategory(content.transform, "Tiles");
             Section(content.transform, "パターン・タイル変形");
             CreateText(content.transform, "選択範囲を繰り返す", 12f, FontStyles.Normal, TextAlignmentOptions.Left);
             GameObject repeatRow = CreateHorizontal(content.transform, "Repeat values", 6f, 40f);
@@ -443,6 +459,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 });
             });
 
+            BeginCategory(content.transform, "Visuals");
             Section(content.transform, "床デコレーションの色ウェーブ");
             CreateText(content.transform, "先に床型の「オブジェクト追加」を2個以上選択してください。", 11f, FontStyles.Normal, TextAlignmentOptions.Left);
             waveDirection = CreateDropdown(content.transform, new[]
@@ -621,6 +638,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 Run(delegate { return TutorialBackgroundOperations.RemoveAtSelection(editor); });
             });
 
+            BeginCategory(content.transform, "Events");
             Section(content.transform, "イベント一括操作");
             CreateText(content.transform, "イベント種類", 12f, FontStyles.Normal, TextAlignmentOptions.Left);
             eventType = CreateDropdown(content.transform,
@@ -862,6 +880,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
             });
             RefreshFavoriteDisplay();
 
+            BeginCategory(content.transform, "Utility");
             Section(content.transform, "移動・選択");
             GameObject floorRow = CreateHorizontal(content.transform, "Floor jump", 6f, 40f);
             floorNumber = CreateInput(floorRow.transform, false, 40f);
@@ -980,6 +999,8 @@ namespace Kiner.ADOFAIEditorQoL.UI
             });
             diagnosticsText = CreateText(content.transform, "", 12f, FontStyles.Normal, TextAlignmentOptions.TopLeft);
 
+            FinishCategoryLayout(content.transform);
+
             status = CreateText(content.transform, "", 12f, FontStyles.Normal, TextAlignmentOptions.Left);
             Button close = CreateButton(content.transform, "左パネルを閉じる", 0f, 31f);
             close.onClick.AddListener(delegate
@@ -998,6 +1019,53 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 return;
             }
             ShowQoL();
+        }
+
+        private void BeginCategory(Transform parent, string category)
+        {
+            CaptureBuiltCategoryItems(parent);
+            buildingCategory = category;
+            categoryStartChildIndex = parent == null ? 0 : parent.childCount;
+        }
+
+        private void FinishCategoryLayout(Transform parent)
+        {
+            CaptureBuiltCategoryItems(parent);
+            buildingCategory = null;
+            ApplyCategoryFilter();
+        }
+
+        private void CaptureBuiltCategoryItems(Transform parent)
+        {
+            if (parent == null || string.IsNullOrEmpty(buildingCategory)) return;
+            List<GameObject> items;
+            if (!categoryItems.TryGetValue(buildingCategory, out items))
+            {
+                items = new List<GameObject>();
+                categoryItems[buildingCategory] = items;
+            }
+
+            for (int i = categoryStartChildIndex; i < parent.childCount; i++)
+            {
+                GameObject item = parent.GetChild(i).gameObject;
+                if (item != null && !items.Contains(item)) items.Add(item);
+            }
+        }
+
+        private void ApplyCategoryFilter()
+        {
+            string selected = toolCategory == null ? "Tiles" : toolCategory.SelectedValue;
+            foreach (KeyValuePair<string, List<GameObject>> pair in categoryItems)
+            {
+                bool visible = string.Equals(pair.Key, selected, StringComparison.Ordinal);
+                for (int i = 0; i < pair.Value.Count; i++)
+                {
+                    GameObject item = pair.Value[i];
+                    if (item != null) item.SetActive(visible);
+                }
+            }
+
+            if (contentScroll != null) contentScroll.verticalNormalizedPosition = 1f;
         }
 
         private void ShowQoL()

@@ -12,6 +12,15 @@ namespace Kiner.ADOFAIEditorQoL.Patches
         }
     }
 
+    [HarmonyPatch(typeof(scnEditor), "SwitchToEditMode", new[] { typeof(bool) })]
+    internal static class EditorReturnPatch
+    {
+        private static void Prefix()
+        {
+            Kiner.ADOFAIEditorQoL.Runtime.RuntimeEffects.CleanupTutorialBackground();
+        }
+    }
+
     [HarmonyPatch(typeof(scnEditor), "HandleKeyboardActions")]
     internal static class EditorKeyboardPatch
     {
