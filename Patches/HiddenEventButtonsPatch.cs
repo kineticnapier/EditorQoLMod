@@ -6,6 +6,7 @@ using System.Reflection;
 using ADOFAI;
 using HarmonyLib;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Kiner.ADOFAIEditorQoL.Patches
 {
@@ -13,9 +14,25 @@ namespace Kiner.ADOFAIEditorQoL.Patches
     internal static class HiddenEventButtonsPatch
     {
         internal static readonly HashSet<LevelEventType> AddedTypes = new HashSet<LevelEventType>();
+        // C# enums cannot gain named members at runtime, but an enum variable may
+        // still hold an undefined numeric value. Use one as a private virtual
+        // category key so the stock editor dictionaries and SetCategory path can
+        // be reused without merging these events into a built-in category.
+        internal static readonly LevelEventCategory LegacyCategory =
+            (LevelEventCategory)(-1000);
+        internal const string LegacyCategoryLabel = "Jank（旧式・非推奨イベント）";
 
         private static readonly FieldInfo CategoryTabsField = AccessTools.Field(typeof(scnEditor), "categoryTabs");
         private static readonly HashSet<int> ScheduledEditors = new HashSet<int>();
+
+        private static void Prefix(scnEditor __instance)
+        {
+            // LoadEditorProperties finishes by calling SetCategory(currentCategory)
+            // before our virtual dictionary entry is restored. Avoid a missing-key
+            // exception if the level is reloaded while the virtual tab is selected.
+            if (Main.Enabled && __instance != null && IsLegacyCategory(__instance.currentCategory))
+                __instance.currentCategory = LevelEventCategory.Favorites;
+        }
 
         private static void Postfix(scnEditor __instance)
         {
@@ -54,18 +71,17 @@ namespace Kiner.ADOFAIEditorQoL.Patches
 
         private static void Apply(scnEditor editor)
         {
-            LevelEventCategory jankCategory;
-            if (!TryResolveCategory("Jank", out jankCategory))
+            if (!EnsureLegacyCategoryIcon())
             {
-                Main.Logger.Warning("Jankカテゴリが見つからないため、旧式イベントを追加できませんでした。");
+                Main.Logger.Warning("Legacyカテゴリ用のアイコンを用意できないため、旧式イベントを追加できませんでした。");
                 return;
             }
 
             List<LevelEventButton> target;
-            if (!editor.eventButtons.TryGetValue(jankCategory, out target) || target == null)
+            if (!editor.eventButtons.TryGetValue(LegacyCategory, out target) || target == null)
             {
                 target = new List<LevelEventButton>();
-                editor.eventButtons[jankCategory] = target;
+                editor.eventButtons[LegacyCategory] = target;
             }
 
             HashSet<LevelEventType> visible = new HashSet<LevelEventType>(
@@ -74,6 +90,18 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                     .SelectMany(x => x)
                     .Where(x => x != null)
                     .Select(x => x.type));
+
+            HashSet<LevelEventType> builtInJankTypes = new HashSet<LevelEventType>();
+            LevelEventCategory builtInJankCategory;
+            List<LevelEventButton> builtInJankButtons;
+            if (TryResolveCategory("Jank", out builtInJankCategory) &&
+                editor.eventButtons.TryGetValue(builtInJankCategory, out builtInJankButtons) &&
+                builtInJankButtons != null)
+            {
+                builtInJankTypes.UnionWith(builtInJankButtons
+                    .Where(x => x != null)
+                    .Select(x => x.type));
+            }
 
             List<LevelEventType> legacy = new List<LevelEventType>();
             foreach (LevelEventInfo info in GCS.levelEventsInfo.Values)
@@ -86,7 +114,8 @@ namespace Kiner.ADOFAIEditorQoL.Patches
 
                 bool explicitlyOmitted = string.Equals(info.name, "ChangeTrack", StringComparison.Ordinal) ||
                                          string.Equals(info.name, "FreeRoamWarning", StringComparison.Ordinal);
-                if (explicitlyOmitted || !visible.Contains(type)) legacy.Add(type);
+                if (explicitlyOmitted || builtInJankTypes.Contains(type) || !visible.Contains(type))
+                    legacy.Add(type);
             }
 
             legacy = legacy.Distinct().OrderBy(x => (int)x).ToList();
@@ -96,7 +125,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
 
             foreach (LevelEventType type in legacy)
             {
-                LevelEventButton reusable = RemoveAndTakeExisting(editor, target, jankCategory, type);
+                LevelEventButton reusable = RemoveAndTakeExisting(editor, target, LegacyCategory, type);
 
                 if (reusable == null)
                 {
@@ -107,22 +136,25 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                     reusable.Init(type, 0, 0);
                 }
 
-                // Do not rebuild or switch the currently visible category here.
-                // The stock CategoryTab click will display the Jank list normally.
+                // Do not switch the currently visible category here. The virtual
+                // tab still uses the stock SetCategory and ShowEventsPage paths.
                 reusable.gameObject.SetActive(false);
                 target.Add(reusable);
                 AddedTypes.Add(type);
             }
 
             ReindexButtons(target);
-            EnsureCategoryTab(editor, jankCategory);
+            EnsureCategoryTab(editor, LegacyCategory);
+            // Moving the stock Jank buttons empties its original category. Let
+            // the editor hide that now-empty tab and keep only the virtual one.
+            editor.UpdateCategoryVisibility();
 
-            Main.Logger.Log("Legacy event buttons registered in Jank without category refresh: " +
+            Main.Logger.Log("Legacy event buttons registered in the virtual category: " +
                 string.Join(", ", legacy.Select(x => x.ToString()).ToArray()));
         }
 
         private static LevelEventButton RemoveAndTakeExisting(scnEditor editor,
-            IList<LevelEventButton> target, LevelEventCategory jankCategory, LevelEventType type)
+            IList<LevelEventButton> target, LevelEventCategory targetCategory, LevelEventType type)
         {
             LevelEventButton reusable = null;
 
@@ -137,7 +169,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
 
             foreach (KeyValuePair<LevelEventCategory, List<LevelEventButton>> pair in editor.eventButtons)
             {
-                if (pair.Key.Equals(jankCategory)) continue;
+                if (pair.Key.Equals(targetCategory)) continue;
                 List<LevelEventButton> list = pair.Value;
                 if (list == null) continue;
 
@@ -191,6 +223,28 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             return false;
         }
 
+        private static bool EnsureLegacyCategoryIcon()
+        {
+            if (GCS.eventCategoryIcons == null) return false;
+            if (GCS.eventCategoryIcons.ContainsKey(LegacyCategory)) return true;
+
+            Sprite icon = null;
+            LevelEventCategory jankCategory;
+            if (TryResolveCategory("Jank", out jankCategory))
+                GCS.eventCategoryIcons.TryGetValue(jankCategory, out icon);
+            if (icon == null)
+                icon = GCS.eventCategoryIcons.Values.FirstOrDefault(x => x != null);
+            if (icon == null) return false;
+
+            GCS.eventCategoryIcons[LegacyCategory] = icon;
+            return true;
+        }
+
+        internal static bool IsLegacyCategory(LevelEventCategory category)
+        {
+            return category.Equals(LegacyCategory);
+        }
+
         private static void EnsureCategoryTab(scnEditor editor, LevelEventCategory category)
         {
             List<CategoryTab> tabs = CategoryTabsField == null
@@ -198,29 +252,54 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                 : CategoryTabsField.GetValue(editor) as List<CategoryTab>;
             if (tabs == null) return;
 
-            CategoryTab existing = tabs.FirstOrDefault(x => x != null && x.levelEventCategory.Equals(category));
-            if (existing != null)
+            CategoryTab tab = tabs.FirstOrDefault(x => x != null && x.levelEventCategory.Equals(category));
+            if (tab == null)
             {
-                existing.gameObject.SetActive(true);
-                return;
+                if (editor.prefab_eventCategoryTab == null || editor.levelEventsBarCategories == null) return;
+
+                GameObject tabObject = UnityEngine.Object.Instantiate(
+                    editor.prefab_eventCategoryTab, editor.levelEventsBarCategories);
+                RectTransform rect = tabObject.GetComponent<RectTransform>();
+                if (rect != null)
+                {
+                    Vector2 position = rect.anchoredPosition;
+                    position.y = 55f;
+                    rect.anchoredPosition = position;
+                }
+
+                tab = tabObject.GetComponent<CategoryTab>();
+                if (tab == null)
+                {
+                    UnityEngine.Object.Destroy(tabObject);
+                    return;
+                }
+
+                tab.Init(category);
+                if (tab.button != null) tab.button.name = "EditorQoL.LegacyCategory";
+                tabs.Add(tab);
             }
 
-            if (editor.prefab_eventCategoryTab == null || editor.levelEventsBarCategories == null) return;
+            tab.gameObject.SetActive(true);
+            PlaceVirtualCategoryAtEnd(tab, tabs, editor.levelEventsBarCategories);
+        }
 
-            GameObject tabObject = UnityEngine.Object.Instantiate(
-                editor.prefab_eventCategoryTab, editor.levelEventsBarCategories);
-            RectTransform rect = tabObject.GetComponent<RectTransform>();
-            if (rect != null)
-            {
-                Vector2 position = rect.anchoredPosition;
-                position.y = 55f;
-                rect.anchoredPosition = position;
-            }
+        private static void PlaceVirtualCategoryAtEnd(CategoryTab target,
+            List<CategoryTab> tabs, RectTransform container)
+        {
+            if (target == null || tabs == null || container == null) return;
 
-            CategoryTab tab = tabObject.GetComponent<CategoryTab>();
-            tab.Init(category);
-            tabs.Add(tab);
-            tabObject.SetActive(true);
+            tabs.Remove(target);
+            CategoryTab previous = tabs.LastOrDefault(x => x != null);
+            tabs.Add(target);
+
+            if (previous != null)
+                target.transform.SetSiblingIndex(previous.transform.GetSiblingIndex() + 1);
+            else
+                target.transform.SetAsLastSibling();
+
+            Canvas.ForceUpdateCanvases();
+            LayoutRebuilder.ForceRebuildLayoutImmediate(container);
+            Main.Logger.Log("仮想Legacyカテゴリタブをカテゴリバー末尾へ追加しました。");
         }
 
         private static void EnsureFallbackIcon(LevelEventType type)
@@ -228,6 +307,61 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             if (GCS.levelEventIcons == null || GCS.levelEventIcons.ContainsKey(type)) return;
             Sprite fallback = GCS.levelEventIcons.Values.FirstOrDefault(x => x != null);
             if (fallback != null) GCS.levelEventIcons[type] = fallback;
+        }
+    }
+
+    [HarmonyPatch(typeof(scnEditor), "CycleEventsPage")]
+    internal static class VirtualLegacyCategoryCyclePatch
+    {
+        private static bool Prefix(scnEditor __instance, bool forward, bool moveAllTheWay)
+        {
+            if (!Main.Enabled || __instance == null || __instance.eventButtons == null)
+                return true;
+
+            List<LevelEventButton> legacyButtons;
+            if (!__instance.eventButtons.TryGetValue(HiddenEventButtonsPatch.LegacyCategory,
+                    out legacyButtons) || legacyButtons == null || legacyButtons.Count == 0)
+                return true;
+
+            List<LevelEventCategory> categories = Enum.GetValues(typeof(LevelEventCategory))
+                .Cast<LevelEventCategory>()
+                .ToList();
+            categories.Add(HiddenEventButtonsPatch.LegacyCategory);
+
+            int index = categories.IndexOf(__instance.currentCategory);
+            if (index < 0) return true;
+
+            if (moveAllTheWay)
+            {
+                index = forward ? categories.Count - 1 : 0;
+            }
+            else
+            {
+                int direction = forward ? 1 : -1;
+                LevelEventCategory candidate;
+                do
+                {
+                    index += direction;
+                    if (Persistence.disableEventsPageRepeat)
+                        index = Mathf.Clamp(index, 0, categories.Count - 1);
+                    else
+                        index = (index % categories.Count + categories.Count) % categories.Count;
+                    candidate = categories[index];
+                }
+                while (!HasAvailableButton(__instance, candidate) &&
+                       candidate != LevelEventCategory.Favorites);
+            }
+
+            __instance.SetCategory(categories[index], false);
+            return false;
+        }
+
+        private static bool HasAvailableButton(scnEditor editor, LevelEventCategory category)
+        {
+            List<LevelEventButton> buttons;
+            return editor.eventButtons.TryGetValue(category, out buttons) &&
+                   buttons != null && buttons.Any(x => x != null &&
+                       (!editor.selectedFirstFloor || x.info.allowFirstFloorCheck));
         }
     }
 
@@ -248,30 +382,30 @@ namespace Kiner.ADOFAIEditorQoL.Patches
     }
 
     [HarmonyPatch(typeof(CategoryTab), "OnPointerEnter")]
-    internal static class JankCategoryTooltipPatch
+    internal static class LegacyCategoryTooltipPatch
     {
-        private static void Postfix(CategoryTab __instance)
+        private static bool Prefix(CategoryTab __instance)
         {
             if (!Main.Enabled || __instance == null || ADOBase.editor == null ||
-                ADOBase.editor.categoryText == null) return;
-            if (!string.Equals(__instance.levelEventCategory.ToString(), "Jank",
-                StringComparison.OrdinalIgnoreCase)) return;
+                ADOBase.editor.categoryText == null ||
+                !HiddenEventButtonsPatch.IsLegacyCategory(__instance.levelEventCategory))
+                return true;
 
-            ADOBase.editor.categoryText.text = "Jank（旧式・非推奨イベント）";
+            ADOBase.editor.categoryText.text = HiddenEventButtonsPatch.LegacyCategoryLabel;
+            return false;
         }
     }
 
     [HarmonyPatch(typeof(CategoryTab), "SetSelected")]
-    internal static class JankCategorySelectedLabelPatch
+    internal static class LegacyCategorySelectedLabelPatch
     {
         private static void Postfix(CategoryTab __instance, bool selected)
         {
             if (!Main.Enabled || !selected || __instance == null || ADOBase.editor == null ||
                 ADOBase.editor.categoryText == null) return;
-            if (!string.Equals(__instance.levelEventCategory.ToString(), "Jank",
-                StringComparison.OrdinalIgnoreCase)) return;
+            if (!HiddenEventButtonsPatch.IsLegacyCategory(__instance.levelEventCategory)) return;
 
-            ADOBase.editor.categoryText.text = "Jank（旧式・非推奨イベント）";
+            ADOBase.editor.categoryText.text = HiddenEventButtonsPatch.LegacyCategoryLabel;
         }
     }
 }
