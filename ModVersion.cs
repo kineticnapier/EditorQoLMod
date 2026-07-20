@@ -2,6 +2,6 @@ namespace Kiner.ADOFAIEditorQoL
 {
     internal static class ModVersion
     {
-        internal const string Current = "0.8.1";
+        internal const string Current = "0.9.0";
     }
 }

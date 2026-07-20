@@ -11,6 +11,22 @@ namespace Kiner.ADOFAIEditorQoL.UI
 {
     internal sealed class EditorQoLPanel : MonoBehaviour
     {
+        private sealed class CommandEntry
+        {
+            internal string Label;
+            internal string Category;
+            internal string Section;
+            internal Button Button;
+
+            internal string DisplayName
+            {
+                get
+                {
+                    return string.IsNullOrEmpty(Section) ? Label : Section + " › " + Label;
+                }
+            }
+        }
+
         private static EditorQoLPanel instance;
 
         internal static bool CapturesKeyboard
@@ -47,12 +63,18 @@ namespace Kiner.ADOFAIEditorQoL.UI
 
         private readonly List<TMP_InputField> inputFields = new List<TMP_InputField>();
         private readonly List<NativeDropdown> dropdowns = new List<NativeDropdown>();
+        private readonly List<CommandEntry> commandEntries = new List<CommandEntry>();
         private readonly Dictionary<string, List<GameObject>> categoryItems =
             new Dictionary<string, List<GameObject>>(StringComparer.Ordinal);
         private ScrollRect contentScroll;
         private NativeDropdown toolCategory;
         private string buildingCategory;
+        private string buildingSection;
         private int categoryStartChildIndex;
+        private TMP_InputField commandSearch;
+        private TMP_Text commandSearchResults;
+        private RectTransform pendingCommandTarget;
+        private int pendingCommandScrollFrames;
 
         private TMP_Text status;
         private TMP_Text selection;
@@ -289,6 +311,17 @@ namespace Kiner.ADOFAIEditorQoL.UI
             viewportHitArea.raycastTarget = true;
 
             selection = CreateText(content.transform, "", 13f, FontStyles.Normal, TextAlignmentOptions.Left);
+
+            CreateText(content.transform, "機能検索（Ctrl+K）", 12f, FontStyles.Bold,
+                TextAlignmentOptions.Left);
+            commandSearch = CreateInput(content.transform, false, 40f);
+            TMP_Text commandPlaceholder = commandSearch.placeholder as TMP_Text;
+            if (commandPlaceholder != null) commandPlaceholder.text = "機能名を入力してEnter";
+            commandSearch.onValueChanged.AddListener(RefreshCommandSearchResults);
+            commandSearch.onSubmit.AddListener(OpenFirstMatchingCommand);
+            commandSearchResults = CreateText(content.transform, "", 11f, FontStyles.Normal,
+                TextAlignmentOptions.TopLeft);
+            commandSearchResults.gameObject.SetActive(false);
 
             CreateText(content.transform, "機能カテゴリ", 12f, FontStyles.Bold, TextAlignmentOptions.Left);
             toolCategory = CreateDropdown(content.transform, new[]
@@ -1025,6 +1058,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
         {
             CaptureBuiltCategoryItems(parent);
             buildingCategory = category;
+            buildingSection = null;
             categoryStartChildIndex = parent == null ? 0 : parent.childCount;
         }
 
@@ -1129,6 +1163,16 @@ namespace Kiner.ADOFAIEditorQoL.UI
 
         private void Update()
         {
+            bool control = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+            if (Main.Enabled && control && Input.GetKeyDown(KeyCode.K))
+                OpenCommandPalette();
+
+            if (commandSearch != null && commandSearch.isFocused && Input.GetKeyDown(KeyCode.Escape))
+            {
+                commandSearch.text = string.Empty;
+                commandSearch.DeactivateInputField();
+            }
+
             if (reopenAfterUndoFrames > 0)
             {
                 reopenAfterUndoFrames--;
@@ -1136,6 +1180,13 @@ namespace Kiner.ADOFAIEditorQoL.UI
             }
 
             if (!IsOpen) return;
+
+            if (pendingCommandScrollFrames > 0)
+            {
+                pendingCommandScrollFrames--;
+                if (pendingCommandScrollFrames == 0) ScrollToCommandTarget();
+            }
+
             RefreshSelection();
             RefreshFavoriteDisplay();
 
@@ -1214,6 +1265,119 @@ namespace Kiner.ADOFAIEditorQoL.UI
             catch (Exception ex)
             {
                 SetStatus("エラー: " + ex.Message);
+            }
+        }
+
+        private void OpenCommandPalette()
+        {
+            if (commandSearch == null) return;
+            if (!IsOpen) ShowQoL();
+            commandSearch.Select();
+            commandSearch.ActivateInputField();
+            commandSearch.MoveTextEnd(false);
+            RefreshCommandSearchResults(commandSearch.text);
+        }
+
+        private void RefreshCommandSearchResults(string query)
+        {
+            if (commandSearchResults == null) return;
+            List<CommandEntry> matches = FindCommands(query).Take(6).ToList();
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                commandSearchResults.text = string.Empty;
+                commandSearchResults.gameObject.SetActive(false);
+                return;
+            }
+
+            commandSearchResults.gameObject.SetActive(true);
+            if (matches.Count == 0)
+            {
+                commandSearchResults.text = "一致する機能がありません。";
+                return;
+            }
+
+            commandSearchResults.text = "Enterで開く: " + matches[0].DisplayName +
+                (matches.Count <= 1 ? string.Empty : "\n候補: " +
+                    string.Join(" / ", matches.Skip(1).Select(x => x.DisplayName).ToArray()));
+        }
+
+        private IEnumerable<CommandEntry> FindCommands(string query)
+        {
+            string text = (query ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(text)) return Enumerable.Empty<CommandEntry>();
+
+            return commandEntries
+                .Where(x => x != null && x.Button != null &&
+                    (ContainsIgnoreCase(x.Label, text) || ContainsIgnoreCase(x.Section, text) ||
+                     ContainsIgnoreCase(CategoryLabel(x.Category), text)))
+                .OrderBy(x => StartsWithIgnoreCase(x.Label, text) ? 0 :
+                    (StartsWithIgnoreCase(x.Section, text) ? 1 : 2))
+                .ThenBy(x => x.DisplayName, StringComparer.CurrentCultureIgnoreCase);
+        }
+
+        private void OpenFirstMatchingCommand(string query)
+        {
+            CommandEntry command = FindCommands(query).FirstOrDefault();
+            if (command == null)
+            {
+                SetStatus("検索条件に一致する機能がありません。");
+                return;
+            }
+
+            if (toolCategory != null) toolCategory.SetValue(command.Category);
+            ApplyCategoryFilter();
+            pendingCommandTarget = command.Button.GetComponent<RectTransform>();
+            pendingCommandScrollFrames = 2;
+            commandSearch.text = string.Empty;
+            commandSearch.DeactivateInputField();
+            command.Button.Select();
+            SetStatus(command.DisplayName + "を開きました。");
+        }
+
+        private void ScrollToCommandTarget()
+        {
+            if (contentScroll == null || contentScroll.content == null ||
+                contentScroll.viewport == null || pendingCommandTarget == null) return;
+
+            Canvas.ForceUpdateCanvases();
+            RectTransform content = contentScroll.content;
+            float scrollableHeight = Mathf.Max(0f, content.rect.height - contentScroll.viewport.rect.height);
+            if (scrollableHeight <= 0.01f)
+            {
+                contentScroll.verticalNormalizedPosition = 1f;
+                pendingCommandTarget = null;
+                return;
+            }
+
+            Vector3 targetCenter = pendingCommandTarget.TransformPoint(pendingCommandTarget.rect.center);
+            float distanceFromTop = Mathf.Max(0f, -content.InverseTransformPoint(targetCenter).y);
+            float desiredOffset = Mathf.Clamp(distanceFromTop - contentScroll.viewport.rect.height * 0.3f,
+                0f, scrollableHeight);
+            contentScroll.verticalNormalizedPosition = 1f - desiredOffset / scrollableHeight;
+            pendingCommandTarget = null;
+        }
+
+        private static bool ContainsIgnoreCase(string source, string query)
+        {
+            return !string.IsNullOrEmpty(source) &&
+                   source.IndexOf(query, StringComparison.CurrentCultureIgnoreCase) >= 0;
+        }
+
+        private static bool StartsWithIgnoreCase(string source, string query)
+        {
+            return !string.IsNullOrEmpty(source) &&
+                   source.StartsWith(query, StringComparison.CurrentCultureIgnoreCase);
+        }
+
+        private static string CategoryLabel(string category)
+        {
+            switch (category)
+            {
+                case "Tiles": return "タイル・トラック";
+                case "Visuals": return "装飾・見た目";
+                case "Events": return "イベント編集";
+                case "Utility": return "移動・情報";
+                default: return category ?? string.Empty;
             }
         }
 
@@ -1441,6 +1605,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
 
         private void Section(Transform parent, string title)
         {
+            buildingSection = title;
             TMP_Text text = CreateText(parent, title, 19f, FontStyles.Bold, TextAlignmentOptions.Left);
             LayoutElement layout = text.GetComponent<LayoutElement>();
             layout.minHeight = 32f;
@@ -1468,6 +1633,17 @@ namespace Kiner.ADOFAIEditorQoL.UI
             layout.minHeight = Mathf.Max(height, 40f);
             layout.flexibleWidth = width <= 0f ? 1f : 0f;
             if (width > 0f) layout.preferredWidth = width;
+
+            if (!string.IsNullOrEmpty(buildingCategory))
+            {
+                commandEntries.Add(new CommandEntry
+                {
+                    Label = label,
+                    Category = buildingCategory,
+                    Section = buildingSection,
+                    Button = button
+                });
+            }
             return button;
         }
 
