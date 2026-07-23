@@ -346,15 +346,28 @@ namespace Kiner.ADOFAIEditorQoL.Core
         private static float GetTrackRotation(scrFloor floor)
         {
             // AddObject's floor mesh does not use the ordinary world-space segment angle.
-            // This is the same conversion used by the game's floor-decoration tooling.
+            // Use the floor's actual travel direction instead of comparing the raw angle
+            // values. A numeric comparison flips at the 0/360-degree boundary.
             double direction = floor.exitangle - Math.PI * 1.5d;
-            double side = floor.exitangle < floor.entryangle ? -1d : 1d;
-            return (float)(direction * Mathf.Rad2Deg * side);
+            double side = floor.isCCW ? 1d : -1d;
+            return NormalizeSignedDegrees((float)(direction * Mathf.Rad2Deg * side));
         }
 
         private static float GetTrackAngle(scrFloor floor)
         {
-            return Mathf.Rad2Deg * (float)Math.Abs(floor.exitangle - floor.entryangle);
+            // This is the same wrap-aware calculation ADOFAI uses for event arcs.
+            // Keep zero for retracing/midspin floors: AddObject uses that value as its
+            // full-turn representation.
+            double moved = scrMisc.GetAngleMoved(floor.entryangle, floor.exitangle,
+                !floor.isCCW);
+            if (Math.Abs(moved) <= 0.000001d) return 0f;
+            return Mathf.Rad2Deg * (float)moved;
+        }
+
+        private static float NormalizeSignedDegrees(float value)
+        {
+            float normalized = Mathf.Repeat(value + 180f, 360f) - 180f;
+            return Mathf.Abs(normalized) < 0.000001f ? 0f : normalized;
         }
 
         private static void ApplyTrackIcon(scnEditor editor, int floorNumber, scrFloor floor,
