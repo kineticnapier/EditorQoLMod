@@ -175,6 +175,31 @@ using System.Reflection;
     )
 }
 
+function Write-ModInfo {
+    param(
+        [string]$DestinationPath,
+        [string]$Version
+    )
+
+    $modInfo = [ordered]@{
+        Id = "ADOFAIEditorQoL"
+        DisplayName = "ADOFAI Editor QoL"
+        Author = "kineticnapier"
+        Version = $Version
+        AssemblyName = "ADOFAIEditorQoL.dll"
+        EntryMethod = "Kiner.ADOFAIEditorQoL.Main.Load"
+        HomePage = "https://github.com/kineticnapier/EditorQoLMod"
+    }
+
+    $json = $modInfo | ConvertTo-Json
+    $utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText(
+        $DestinationPath,
+        $json + [Environment]::NewLine,
+        $utf8WithoutBom
+    )
+}
+
 function Assert-GameReferences {
     param([string]$ManagedDirectory)
 
@@ -267,6 +292,8 @@ if (-not $SkipPackage) {
     if (Test-Path -LiteralPath $pdbPath -PathType Leaf) {
         Copy-Item -LiteralPath $pdbPath -Destination $packageDirectory
     }
+    Write-ModInfo -DestinationPath (Join-Path $packageDirectory "Info.json") `
+        -Version $version
 
     Compress-Archive -Path (Join-Path $packageDirectory "*") `
         -DestinationPath $zipPath -CompressionLevel Optimal
@@ -279,6 +306,8 @@ if (-not [string]::IsNullOrWhiteSpace($DeployDir)) {
     if (Test-Path -LiteralPath $pdbPath -PathType Leaf) {
         Copy-Item -LiteralPath $pdbPath -Destination $DeployDir -Force
     }
+    Write-ModInfo -DestinationPath (Join-Path $DeployDir "Info.json") `
+        -Version $version
     Write-Host "Deployed: $DeployDir"
 }
 
