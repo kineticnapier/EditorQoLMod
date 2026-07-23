@@ -156,16 +156,18 @@ namespace Kiner.ADOFAIEditorQoL.Core
             for (int floor = range.Start; floor <= range.End; floor++)
             {
                 float absolute = editor.levelData.angleData[floor - 1];
-                scrFloor floorObject = editor.floors[floor];
-                directions.Add(floorObject.isCCW);
+                // angleData[floor - 1] is the segment that leaves floor - 1. Reading the
+                // turn from floor itself shifts the whole result (and Twirl) one tile back.
+                scrFloor anchor = editor.floors[floor - 1];
+                directions.Add(anchor.isCCW);
                 if (IsMidspin(absolute))
                 {
                     scaledRelatives.Add(999f);
                     continue;
                 }
 
-                float relative = (float)(scrMisc.GetAngleMoved((double)floorObject.entryangle,
-                    (double)floorObject.exitangle, !floorObject.isCCW) * 57.29577951308232d);
+                float relative = (float)(scrMisc.GetAngleMoved((double)anchor.entryangle,
+                    (double)anchor.exitangle, !anchor.isCCW) * 57.29577951308232d);
                 if (relative <= 0.00001f) relative = 360f;
                 float scaled = relative * multiplier;
                 if (scaled <= 0.000001f || scaled > 360.00001f)
@@ -220,7 +222,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
                     if (relative > 360.00001f)
                         throw new InvalidOperationException("焼き込み角度は0～360で指定してください。");
                     int floorNumber = range.Start + i;
-                    bool isCcw = editor.floors[floorNumber].isCCW;
+                    bool isCcw = editor.floors[floorNumber - 1].isCCW;
                     float absolute = RelativeToAbsolute(previous, Math.Min(360f, relative), isCcw);
                     editor.levelData.angleData[floorNumber - 1] = absolute;
                     previous = absolute;

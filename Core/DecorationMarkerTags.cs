@@ -10,6 +10,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
     {
         internal const string TextMaskPrefix = "qolTextMask_";
         internal const string CustomFontPrefix = "qolFont_";
+        internal const string ManagedMultiTilePrefix = "qolMultiTile_";
 
         internal static string[] GetTags(LevelEvent decoration)
         {

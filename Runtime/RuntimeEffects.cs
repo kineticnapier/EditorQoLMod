@@ -8,14 +8,17 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
         {
             DestroyRuntimeComponents<TextMaskRuntime>();
             DestroyRuntimeComponents<TutorialBackgroundRuntime>();
+            DestroyRuntimeComponents<MultiTilePlanetRuntime>();
+            DestroyRuntimeComponents<MultiTileDecorationRuntime>();
             DestroyRuntimeComponents<CustomTextFontRuntime>();
             CustomTextFontRuntime.ClearCachedFonts();
             SpriteAlphaMaskUtils.doRefreshMaskCache = true;
         }
 
-        internal static void CleanupTutorialBackground()
+        internal static void CleanupPlaybackEffects()
         {
             DestroyRuntimeComponents<TutorialBackgroundRuntime>();
+            DestroyRuntimeComponents<MultiTilePlanetRuntime>();
         }
 
         internal static void ReactivateCurrentScene()
@@ -27,7 +30,6 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
                 try
                 {
                     editor.UpdateDecorationObjects();
-                    editor.ApplyEventsToFloors();
                 }
                 catch
                 {
@@ -41,7 +43,14 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
                 TutorialBackgroundRuntime runtime = game.GetComponent<TutorialBackgroundRuntime>();
                 if (runtime == null) runtime = game.gameObject.AddComponent<TutorialBackgroundRuntime>();
                 runtime.Configure(game);
+
+                MultiTilePlanetRuntime planetRuntime = game.GetComponent<MultiTilePlanetRuntime>();
+                if (planetRuntime == null)
+                    planetRuntime = game.gameObject.AddComponent<MultiTilePlanetRuntime>();
+                planetRuntime.Configure(game);
             }
+
+            MultiTileDecorationRuntime.AttachAllInCurrentScenes();
         }
 
         private static void DestroyRuntimeComponents<T>() where T : MonoBehaviour
