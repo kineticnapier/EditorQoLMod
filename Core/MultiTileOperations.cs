@@ -503,7 +503,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
                             x.floor >= 0 && x.floor <= floorNumber)
                 .Select(x => x.floor)
                 .Distinct()
-                .Count() % 2 == 0;
+                .Count() % 2 != 0;
 
             // p/t are ADOFAI's incoming/outgoing directions in degrees.
             float p = NormalizeDegrees((float)(floor.entryangle * Mathf.Rad2Deg));
