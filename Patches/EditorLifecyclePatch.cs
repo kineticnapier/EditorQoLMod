@@ -8,7 +8,11 @@ namespace Kiner.ADOFAIEditorQoL.Patches
         private static void Postfix(scnEditor __instance)
         {
             Core.Pacl2UndoBridge.Cleanup();
-            if (Main.Enabled) UI.EditorQoLPanel.Attach(__instance);
+            if (Main.Enabled)
+            {
+                UI.EditorQoLPanel.Attach(__instance);
+                Runtime.MultiTileDecorationRuntime.AttachAllInCurrentScenes();
+            }
         }
     }
 
@@ -17,7 +21,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
     {
         private static void Prefix()
         {
-            Kiner.ADOFAIEditorQoL.Runtime.RuntimeEffects.CleanupTutorialBackground();
+            Kiner.ADOFAIEditorQoL.Runtime.RuntimeEffects.CleanupPlaybackEffects();
         }
     }
 

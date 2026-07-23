@@ -32,6 +32,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
             string planetGroup = "P" + groupNumber.ToString(CultureInfo.InvariantCulture);
             float tileSize = ResolveTileSize();
             List<LevelEvent> created = new List<LevelEvent>();
+            List<LevelEvent> createdEvents = new List<LevelEvent>();
 
             for (int floorNumber = range.Start; floorNumber <= range.End; floorNumber++)
             {
@@ -41,32 +42,38 @@ namespace Kiner.ADOFAIEditorQoL.Core
                 SetEnabled(decoration, "objectType", ObjectDecorationType.Floor);
                 SetEnumText(decoration, "relativeTo", "Global");
                 SetEnabled(decoration, "position", ToLevelPosition(floor, tileSize));
-                SetEnabled(decoration, "rotation", GetPathRotation(editor, floorNumber));
-                SetEnabled(decoration, "trackAngle", GetRelativeAngle(floor));
+                float rotation = GetTrackRotation(floor);
+                SetEnabled(decoration, "rotation", rotation);
+                SetEnumText(decoration, "trackType", floor.midSpin ? "Midspin" : "Normal");
+                SetEnabled(decoration, "trackAngle", GetTrackAngle(floor));
+                Vector3 localScale = floor.transform.localScale;
+                SetEnabled(decoration, "scale", new Vector2(localScale.x * 100f, localScale.y * 100f));
                 SetEnabled(decoration, "depth", index);
                 SetEnabled(decoration, "tag", generatedGroup + " " + generatedGroup + "_" +
-                    index.ToString(CultureInfo.InvariantCulture));
+                    index.ToString(CultureInfo.InvariantCulture) + " " +
+                    DecorationMarkerTags.ManagedMultiTilePrefix + generatedGroup);
+                ApplyTrackIcon(editor, floorNumber, floor, decoration, rotation);
                 created.Add(decoration);
             }
 
             if (includePlanets)
             {
-                created.Add(CreatePlanet(editor.floors[range.Start], tileSize, planetGroup, 1,
-                    "DefaultBlue", new Vector2(1f, 0f), GetPathRotation(editor, range.Start)));
-                created.Add(CreatePlanet(editor.floors[range.Start + 1], tileSize, planetGroup, 2,
-                    "DefaultRed", new Vector2(-1f, 0f), GetPathRotation(editor, range.Start + 1)));
+                CreatePlanetAnimation(editor, range, tileSize, generatedGroup, planetGroup,
+                    created, createdEvents);
             }
 
             using (new EditorUndoScope(editor))
             {
                 foreach (LevelEvent decoration in created) editor.decorations.Add(decoration);
+                foreach (LevelEvent levelEvent in createdEvents) editor.events.Add(levelEvent);
                 editor.UpdateDecorationObjects();
                 if (editor.propertyControlDecorationsList != null)
                     editor.propertyControlDecorationsList.RefreshItemsList(true);
             }
 
             return generatedGroup + "として床デコレーションを" + range.Count + "個" +
-                   (includePlanets ? "、惑星を2個" : string.Empty) + "生成しました。";
+                   (includePlanets ? "、惑星を2個、専用公転イベントを1件" : string.Empty) +
+                   "生成しました。";
         }
 
         public static string BakeToSelectedTiles(scnEditor editor, string requestedGroup)
@@ -86,14 +93,18 @@ namespace Kiner.ADOFAIEditorQoL.Core
             if (range.Count == tokens.Count)
             {
                 string result = TileTransformOperations.OverwriteRelativeAngles(editor, tokens);
+                string cleanup = RemovePlanetPreview(editor, group);
                 return group + "の" + tokens.Count + "角度を実タイルへ焼き込みました。" +
-                       " タイル数が同じため、既存イベントと装飾は維持しています。 " + result;
+                       " 床デコレーションは維持し、専用公転イベントとプレビュー惑星を削除しました。 " +
+                       result + " " + cleanup;
             }
 
             int oldCount = range.Count;
             string replaceResult = TileTransformOperations.ReplaceSelectionWithPattern(editor, tokens);
+            string replaceCleanup = RemovePlanetPreview(editor, group);
             return group + "の" + tokens.Count + "角度を実タイルへ焼き込みました。" +
-                   " 選択範囲が" + oldCount + "タイルだったため、範囲をリズム全体で置換しました。 " + replaceResult;
+                   " 選択範囲が" + oldCount + "タイルだったため、範囲をリズム全体で置換しました。 " +
+                   replaceResult + " " + replaceCleanup;
         }
 
         private static List<RhythmEntry> ReadRhythm(scnEditor editor, string group)
@@ -161,20 +172,87 @@ namespace Kiner.ADOFAIEditorQoL.Core
                 .ToList();
         }
 
-        private static LevelEvent CreatePlanet(scrFloor floor, float tileSize, string group, int index,
-            string colorType, Vector2 pivot, float rotation)
+        private static void CreatePlanetAnimation(scnEditor editor, FloorRange range, float tileSize,
+            string tileGroup, string planetGroup, ICollection<LevelEvent> decorations,
+            ICollection<LevelEvent> events)
         {
-            LevelEvent planet = new LevelEvent(0, LevelEventType.AddObject);
+            Vector2 firstPosition = ToLevelPosition(editor.floors[range.Start], tileSize);
+            Vector2 secondPosition = ToLevelPosition(editor.floors[range.Start + 1], tileSize);
+            Vector2 initialStep = secondPosition - firstPosition;
+            if (initialStep.sqrMagnitude < 0.000001f)
+                throw new InvalidOperationException("先頭2タイルが同じ位置のため、惑星の公転半径を決められません。");
+
+            string blueTag = planetGroup + "_BluePlanet";
+            string redTag = planetGroup + "_RedPlanet";
+
+            // The runtime writes world positions directly. Both pivot and Tile-relative
+            // placement must therefore be neutral; otherwise scrDecoration would apply the
+            // anchor transform for a second time when a turn or Twirl occurs.
+            decorations.Add(CreatePlanet(range.Start, firstPosition, planetGroup, 1,
+                blueTag, "DefaultBlue"));
+            decorations.Add(CreatePlanet(range.Start, firstPosition - initialStep, planetGroup, 2,
+                redTag, "DefaultRed"));
+            events.Add(MultiTilePlanetEvent.Create(range.Start, range.End, range.Count,
+                tileGroup, planetGroup));
+        }
+
+        private static LevelEvent CreatePlanet(int floor, Vector2 position, string group, int index,
+            string colorTag, string colorType)
+        {
+            LevelEvent planet = new LevelEvent(floor, LevelEventType.AddObject);
             SetEnumText(planet, "objectType", "Planet");
             SetEnumText(planet, "relativeTo", "Global");
             SetEnumText(planet, "planetColorType", colorType);
-            SetEnabled(planet, "position", ToLevelPosition(floor, tileSize));
-            SetEnabled(planet, "pivotOffset", pivot);
-            SetEnabled(planet, "rotation", rotation);
+            SetEnabled(planet, "position", position);
+            SetEnabled(planet, "pivotOffset", Vector2.zero);
+            SetEnabled(planet, "rotation", 0f);
             SetEnabled(planet, "depth", 0);
             SetEnabled(planet, "tag", group + " " + group + "_" +
-                index.ToString(CultureInfo.InvariantCulture));
+                index.ToString(CultureInfo.InvariantCulture) + " " + colorTag);
             return planet;
+        }
+
+        private static string RemovePlanetPreview(scnEditor editor, string tileGroup)
+        {
+            int groupNumber = ParseGroupNumber(tileGroup);
+            string planetGroup = "P" + groupNumber.ToString(CultureInfo.InvariantCulture);
+            List<LevelEvent> removeDecorations = editor.decorations.Where(x =>
+                x != null && x.eventType == LevelEventType.AddObject &&
+                IsObjectTypeName(x, "Planet") && Tags(x).Contains(planetGroup)).ToList();
+            List<LevelEvent> removeEvents = new List<LevelEvent>();
+            foreach (LevelEvent evnt in editor.events.Where(x => x != null))
+            {
+                MultiTilePlanetCommand command;
+                if (MultiTilePlanetEvent.TryDecode(evnt, out command) &&
+                    (command.TileGroup == tileGroup || command.PlanetGroup == planetGroup))
+                {
+                    removeEvents.Add(evnt);
+                    continue;
+                }
+
+                // Clean up v0.14.x previews as well. They used ordinary MoveDecorations
+                // targeted at Pn_BluePlanet/Pn_RedPlanet and are no longer needed.
+                if (evnt.eventType == LevelEventType.MoveDecorations &&
+                    Tags(evnt).Any(x => x == planetGroup ||
+                        x.StartsWith(planetGroup + "_", StringComparison.Ordinal)))
+                    removeEvents.Add(evnt);
+            }
+
+            if (removeDecorations.Count == 0 && removeEvents.Count == 0)
+                return "削除対象の惑星プレビューはありませんでした。";
+
+            using (new EditorUndoScope(editor))
+            {
+                foreach (LevelEvent decoration in removeDecorations)
+                    editor.decorations.Remove(decoration);
+                foreach (LevelEvent evnt in removeEvents)
+                    editor.events.Remove(evnt);
+                editor.UpdateDecorationObjects();
+                if (editor.propertyControlDecorationsList != null)
+                    editor.propertyControlDecorationsList.RefreshItemsList(true);
+            }
+            return "惑星" + removeDecorations.Count + "個と専用・旧公転イベント" +
+                   removeEvents.Count + "件を削除しました。";
         }
 
         private static string ResolveNewGroup(scnEditor editor, string requested)
@@ -257,35 +335,100 @@ namespace Kiner.ADOFAIEditorQoL.Core
 
         private static Vector2 ToLevelPosition(scrFloor floor, float tileSize)
         {
+            // Snapshot the editor-visible position once. This intentionally includes
+            // justThisTile PositionTrack, but MultiTileOperations must not call
+            // ApplyEventsToFloors again after the snapshot or those offsets can be applied
+            // to the already-positioned editor floors a second time.
             Vector3 position = floor.transform.position;
             return new Vector2(position.x / tileSize, position.y / tileSize);
         }
 
-        private static float GetPathRotation(scnEditor editor, int floorNumber)
+        private static float GetTrackRotation(scrFloor floor)
         {
-            Vector3 current = editor.floors[floorNumber].transform.position;
-            Vector3 other;
-            if (floorNumber > 0) other = editor.floors[floorNumber - 1].transform.position;
-            else if (floorNumber + 1 < editor.floors.Count)
-            {
-                other = current;
-                current = editor.floors[floorNumber + 1].transform.position;
-            }
-            else return 0f;
-
-            Vector2 delta = new Vector2(current.x - other.x, current.y - other.y);
-            if (delta.sqrMagnitude < 0.000001f) return 0f;
-            float angle = Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg;
-            return angle < 0f ? angle + 360f : angle;
+            // AddObject's floor mesh does not use the ordinary world-space segment angle.
+            // This is the same conversion used by the game's floor-decoration tooling.
+            double direction = floor.exitangle - Math.PI * 1.5d;
+            double side = floor.exitangle < floor.entryangle ? -1d : 1d;
+            return (float)(direction * Mathf.Rad2Deg * side);
         }
 
-        private static float GetRelativeAngle(scrFloor floor)
+        private static float GetTrackAngle(scrFloor floor)
         {
-            float angle = (float)(scrMisc.GetAngleMoved((double)floor.entryangle, (double)floor.exitangle,
-                !floor.isCCW) * 57.29577951308232d);
-            if (angle <= 0.00001f) return 360f;
-            if (angle > 360f && angle < 360.001f) return 360f;
-            return angle;
+            return Mathf.Rad2Deg * (float)Math.Abs(floor.exitangle - floor.entryangle);
+        }
+
+        private static void ApplyTrackIcon(scnEditor editor, int floorNumber, scrFloor floor,
+            LevelEvent decoration, float rotation)
+        {
+            LevelEvent iconEvent = editor.events.LastOrDefault(x => x != null && x.floor == floorNumber &&
+                (x.eventType == LevelEventType.Twirl || x.eventType == LevelEventType.SetSpeed ||
+                 x.eventType == LevelEventType.Checkpoint || x.eventType == LevelEventType.MultiPlanet));
+            if (iconEvent == null) return;
+
+            string icon = "None";
+            if (iconEvent.eventType == LevelEventType.Twirl)
+            {
+                icon = "Swirl";
+                SetEnabled(decoration, "trackRedSwirl", floor.isCCW);
+            }
+            else if (iconEvent.eventType == LevelEventType.SetSpeed)
+            {
+                float ratio = GetSpeedRatio(editor, floorNumber, iconEvent);
+                if (ratio >= 1.9999f) icon = "DoubleRabbit";
+                else if (ratio > 1.0001f) icon = "Rabbit";
+                else if (ratio <= 0.5001f) icon = "DoubleSnail";
+                else if (ratio < 0.9999f) icon = "Snail";
+                SetEnabled(decoration, "trackGraySetSpeedIcon", false);
+                SetEnabled(decoration, "trackSetSpeedIconBpm", EffectiveBpm(editor, floorNumber));
+            }
+            else if (iconEvent.eventType == LevelEventType.Checkpoint)
+            {
+                icon = "Checkpoint";
+            }
+            else if (iconEvent.eventType == LevelEventType.MultiPlanet)
+            {
+                object planets;
+                string value = iconEvent.data.TryGetValue("planets", out planets)
+                    ? Convert.ToString(planets)
+                    : string.Empty;
+                icon = string.Equals(value, "TwoPlanets", StringComparison.OrdinalIgnoreCase)
+                    ? "MultiPlanetTwo"
+                    : "MultiPlanetThreeMore";
+            }
+
+            SetEnumText(decoration, "trackIcon", icon);
+            SetEnabled(decoration, "trackIconAngle", rotation);
+            SetEnabled(decoration, "trackIconFlipped", false);
+        }
+
+        private static float GetSpeedRatio(scnEditor editor, int floorNumber, LevelEvent speedEvent)
+        {
+            object speedType;
+            string type = speedEvent.data.TryGetValue("speedType", out speedType)
+                ? Convert.ToString(speedType)
+                : string.Empty;
+            if (string.Equals(type, "Multiplier", StringComparison.OrdinalIgnoreCase))
+            {
+                object multiplier;
+                if (speedEvent.data.TryGetValue("bpmMultiplier", out multiplier) && multiplier != null)
+                {
+                    try { return Convert.ToSingle(multiplier, CultureInfo.InvariantCulture); }
+                    catch { return 1f; }
+                }
+            }
+
+            float previous = floorNumber <= 0
+                ? Math.Max(0.0001f, editor.levelData.bpm)
+                : Math.Max(0.0001f, EffectiveBpm(editor, floorNumber - 1));
+            return EffectiveBpm(editor, floorNumber) / previous;
+        }
+
+        private static float EffectiveBpm(scnEditor editor, int floorNumber)
+        {
+            float baseBpm = editor.levelData == null ? 100f : editor.levelData.bpm;
+            if (editor.floors == null || editor.floors.Count == 0) return baseBpm;
+            int index = Mathf.Clamp(floorNumber, 0, editor.floors.Count - 1);
+            return baseBpm * editor.floors[index].speed;
         }
 
         private static double NormalizeBakeAngle(float value)
@@ -308,6 +451,14 @@ namespace Kiner.ADOFAIEditorQoL.Core
             if (value is ObjectDecorationType) return (ObjectDecorationType)value == expected;
             ObjectDecorationType parsed;
             return Enum.TryParse(Convert.ToString(value), true, out parsed) && parsed == expected;
+        }
+
+        private static bool IsObjectTypeName(LevelEvent decoration, string expected)
+        {
+            object value;
+            if (!decoration.data.TryGetValue("objectType", out value) || value == null) return false;
+            return string.Equals(Convert.ToString(value), expected,
+                StringComparison.OrdinalIgnoreCase);
         }
 
         private static string[] Tags(LevelEvent decoration)
@@ -345,5 +496,6 @@ namespace Kiner.ADOFAIEditorQoL.Core
             decoration.data[key] = value;
             if (decoration.disabled.ContainsKey(key)) decoration.disabled[key] = false;
         }
+
     }
 }

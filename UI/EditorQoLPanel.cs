@@ -610,7 +610,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 });
             });
             CreateText(content.transform,
-                "焼き込みはT番号のtrackAngleを連番順に読み、選択中の実タイルへ適用します。同数ならイベントを維持し、数が違う場合は選択範囲ごと置換します。",
+                "惑星は専用イベントで再生し、MoveDecorationsは生成しません。焼き込みはT番号のtrackAngleを実タイルへ適用し、専用イベントとプレビュー惑星を削除します。",
                 10f, FontStyles.Normal, TextAlignmentOptions.Left);
             Button bakeMultiTile = CreateButton(content.transform, "マルチタイルのリズムを実タイルへ焼き込む", 0f, 40f);
             bakeMultiTile.onClick.AddListener(delegate
