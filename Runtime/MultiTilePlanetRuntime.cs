@@ -786,8 +786,9 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             Vector2 startVector = FindIncomingVector(session, sourceIndex, current, endVector);
             float startAngle = DirectionAngle(startVector);
             float endAngle = DirectionAngle(endVector);
-            float trackAngle = ReadFloat(session.Path[sourceIndex].sourceLevelEvent,
-                "trackAngle", 180f);
+            LevelEvent pathEvent = session.Path[sourceIndex].sourceLevelEvent;
+            float trackAngle = MultiTileOperations.ReadManagedRhythmAngle(pathEvent,
+                ReadFloat(pathEvent, "trackAngle", 180f));
             if (trackAngle <= 0.0001f) trackAngle = 360f;
             float extraAngle = SumEventValue(events, sourceFloor, LevelEventType.Pause,
                                    "duration") * 180f +
