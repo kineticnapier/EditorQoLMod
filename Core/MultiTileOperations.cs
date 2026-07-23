@@ -426,45 +426,91 @@ namespace Kiner.ADOFAIEditorQoL.Core
         private static void ApplyTrackIcon(scnEditor editor, int floorNumber, scrFloor floor,
             LevelEvent decoration, float rotation)
         {
-            LevelEvent iconEvent = editor.events.LastOrDefault(x => x != null && x.floor == floorNumber &&
-                (x.eventType == LevelEventType.Twirl || x.eventType == LevelEventType.SetSpeed ||
-                 x.eventType == LevelEventType.Checkpoint || x.eventType == LevelEventType.MultiPlanet));
-            if (iconEvent == null) return;
-
             string icon = "None";
-            if (iconEvent.eventType == LevelEventType.Twirl)
+            LevelEvent speedEvent = editor.events.LastOrDefault(x => x != null &&
+                x.floor == floorNumber && x.eventType == LevelEventType.SetSpeed);
+            LevelEvent twirlEvent = editor.events.LastOrDefault(x => x != null &&
+                x.floor == floorNumber && x.eventType == LevelEventType.Twirl);
+            LevelEvent checkpointEvent = editor.events.LastOrDefault(x => x != null &&
+                x.floor == floorNumber && x.eventType == LevelEventType.Checkpoint);
+            LevelEvent multiPlanetEvent = editor.events.LastOrDefault(x => x != null &&
+                x.floor == floorNumber && x.eventType == LevelEventType.MultiPlanet);
+
+            // Native floors give a meaningful speed change priority over Twirl. Event-list
+            // order must not decide which icon survives when a tile owns both events.
+            float speedRatio = speedEvent == null
+                ? 1f
+                : GetSpeedRatio(editor, floorNumber, speedEvent);
+            if (speedEvent != null && speedRatio >= 1.9999f)
+            {
+                icon = "DoubleRabbit";
+            }
+            else if (speedEvent != null && speedRatio <= 0.2501f)
+            {
+                icon = "DoubleSnail";
+            }
+            else if (speedEvent != null && speedRatio >= 1.0499f)
+            {
+                icon = "Rabbit";
+            }
+            else if (speedEvent != null && speedRatio <= 0.9501f)
+            {
+                icon = "Snail";
+            }
+            else if (twirlEvent != null)
             {
                 icon = "Swirl";
-                SetEnabled(decoration, "trackRedSwirl", floor.isCCW);
+                SetEnabled(decoration, "trackRedSwirl",
+                    ResolveRedTwirl(editor, floorNumber, floor));
             }
-            else if (iconEvent.eventType == LevelEventType.SetSpeed)
-            {
-                float ratio = GetSpeedRatio(editor, floorNumber, iconEvent);
-                if (ratio >= 1.9999f) icon = "DoubleRabbit";
-                else if (ratio > 1.0001f) icon = "Rabbit";
-                else if (ratio <= 0.5001f) icon = "DoubleSnail";
-                else if (ratio < 0.9999f) icon = "Snail";
-                SetEnabled(decoration, "trackGraySetSpeedIcon", false);
-                SetEnabled(decoration, "trackSetSpeedIconBpm", EffectiveBpm(editor, floorNumber));
-            }
-            else if (iconEvent.eventType == LevelEventType.Checkpoint)
+            else if (checkpointEvent != null)
             {
                 icon = "Checkpoint";
             }
-            else if (iconEvent.eventType == LevelEventType.MultiPlanet)
+            else if (multiPlanetEvent != null)
             {
                 object planets;
-                string value = iconEvent.data.TryGetValue("planets", out planets)
+                string value = multiPlanetEvent.data.TryGetValue("planets", out planets)
                     ? Convert.ToString(planets)
                     : string.Empty;
                 icon = string.Equals(value, "TwoPlanets", StringComparison.OrdinalIgnoreCase)
                     ? "MultiPlanetTwo"
                     : "MultiPlanetThreeMore";
             }
+            else
+            {
+                return;
+            }
 
             SetEnumText(decoration, "trackIcon", icon);
             SetEnabled(decoration, "trackIconAngle", rotation);
             SetEnabled(decoration, "trackIconFlipped", false);
+            if (icon == "DoubleRabbit" || icon == "DoubleSnail" ||
+                icon == "Rabbit" || icon == "Snail")
+            {
+                SetEnabled(decoration, "trackGraySetSpeedIcon", false);
+                SetEnabled(decoration, "trackSetSpeedIconBpm",
+                    EffectiveBpm(editor, floorNumber));
+            }
+        }
+
+        private static bool ResolveRedTwirl(scnEditor editor, int floorNumber, scrFloor floor)
+        {
+            // AddObject uses the side on which the planets leave this tile, not isCCW by
+            // itself. Rebuild ADOFAI's left/right state from Twirls up to this floor.
+            bool isLhs = editor.events
+                .Where(x => x != null && x.eventType == LevelEventType.Twirl &&
+                            x.floor >= 0 && x.floor <= floorNumber)
+                .Select(x => x.floor)
+                .Distinct()
+                .Count() % 2 == 0;
+
+            // p/t are ADOFAI's incoming/outgoing directions in degrees.
+            float p = NormalizeDegrees((float)(floor.entryangle * Mathf.Rad2Deg));
+            float t = NormalizeDegrees((float)(floor.exitangle * Mathf.Rad2Deg));
+            if (isLhs)
+                return (p - 180f < t && t <= p) || p + 180f < t;
+            return (p <= t && t < p + 180f) || t < p - 180f;
         }
 
         private static float GetSpeedRatio(scnEditor editor, int floorNumber, LevelEvent speedEvent)
