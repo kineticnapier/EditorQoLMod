@@ -70,6 +70,10 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
         private static FieldInfo song2Field;
         private static AudioSource lastAudioSource;
         private static double lastAudioTime;
+        private static double lastAudioSampleTime;
+        private static double lastAudioDspTime;
+        private static int lastAudioSample;
+        private static bool audioClockInitialized;
 
         internal void Configure(scnGame source)
         {
@@ -86,6 +90,10 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             nextNativePlanetResolveFrame = 0;
             lastAudioSource = null;
             lastAudioTime = 0d;
+            lastAudioSampleTime = 0d;
+            lastAudioDspTime = 0d;
+            lastAudioSample = 0;
+            audioClockInitialized = false;
         }
 
         private void LateUpdate()
@@ -1035,9 +1043,41 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             if (source == null || source.clip == null || source.clip.frequency <= 0) return false;
             try
             {
-                time = (double)source.timeSamples / source.clip.frequency;
+                int sample = source.timeSamples;
+                double sampleTime = (double)sample / source.clip.frequency;
+                double dspTime = AudioSettings.dspTime;
+                bool resetClock = !audioClockInitialized ||
+                                  !ReferenceEquals(source, lastAudioSource) ||
+                                  sampleTime + 0.05d < lastAudioSampleTime ||
+                                  dspTime < lastAudioDspTime;
+
+                if (resetClock || !source.isPlaying)
+                {
+                    time = sampleTime;
+                    audioClockInitialized = true;
+                }
+                else
+                {
+                    // timeSamples advances by the audio DSP buffer and therefore remains
+                    // unchanged for several rendered frames. Extrapolate it with dspTime,
+                    // using samples only to detect a real seek or large clock drift.
+                    double elapsed = Math.Max(0d, dspTime - lastAudioDspTime);
+                    double pitch = Math.Max(0d, source.pitch);
+                    double predicted = lastAudioTime + elapsed * pitch;
+                    if (sample != lastAudioSample)
+                    {
+                        double drift = sampleTime - predicted;
+                        if (Math.Abs(drift) > 0.075d)
+                            predicted = sampleTime;
+                    }
+                    time = Math.Max(lastAudioTime, predicted);
+                }
+
                 lastAudioSource = source;
                 lastAudioTime = time;
+                lastAudioSampleTime = sampleTime;
+                lastAudioDspTime = dspTime;
+                lastAudioSample = sample;
                 return true;
             }
             catch
