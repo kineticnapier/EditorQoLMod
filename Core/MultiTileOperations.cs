@@ -316,14 +316,6 @@ namespace Kiner.ADOFAIEditorQoL.Core
             List<LevelEvent> removeEvents = new List<LevelEvent>();
             foreach (LevelEvent evnt in editor.events.Where(x => x != null))
             {
-                MultiTilePlanetCommand command;
-                if (MultiTilePlanetEvent.TryDecode(evnt, out command) &&
-                    (command.TileGroup == tileGroup || command.PlanetGroup == planetGroup))
-                {
-                    removeEvents.Add(evnt);
-                    continue;
-                }
-
                 // Both current native previews and v0.14.x previews use ordinary
                 // MoveDecorations targeted at Pn_BluePlanet/Pn_RedPlanet.
                 if (evnt.eventType == LevelEventType.MoveDecorations &&
