@@ -42,16 +42,19 @@ namespace Kiner.ADOFAIEditorQoL.Core
                 SetEnabled(decoration, "objectType", ObjectDecorationType.Floor);
                 SetEnumText(decoration, "relativeTo", "Global");
                 SetEnabled(decoration, "position", ToLevelPosition(floor, tileSize));
-                float rotation = GetTrackRotation(floor);
+                float visualAngle = GetVisualTrackAngle(floor);
+                float rhythmAngle = GetRhythmAngle(floor);
+                float rotation = GetTrackRotation(floor, visualAngle);
                 SetEnabled(decoration, "rotation", rotation);
                 SetEnumText(decoration, "trackType", floor.midSpin ? "Midspin" : "Normal");
-                SetEnabled(decoration, "trackAngle", GetTrackAngle(floor));
+                SetEnabled(decoration, "trackAngle", visualAngle);
                 Vector3 localScale = floor.transform.localScale;
                 SetEnabled(decoration, "scale", new Vector2(localScale.x * 100f, localScale.y * 100f));
                 SetEnabled(decoration, "depth", index);
                 SetEnabled(decoration, "tag", generatedGroup + " " + generatedGroup + "_" +
                     index.ToString(CultureInfo.InvariantCulture) + " " +
-                    DecorationMarkerTags.ManagedMultiTilePrefix + generatedGroup);
+                    DecorationMarkerTags.ManagedMultiTilePrefix + generatedGroup + " " +
+                    EncodeRhythmAngle(rhythmAngle));
                 ApplyTrackIcon(editor, floorNumber, floor, decoration, rotation);
                 created.Add(decoration);
             }
@@ -122,7 +125,8 @@ namespace Kiner.ADOFAIEditorQoL.Core
                 string[] tags = Tags(decoration);
                 if (!tags.Contains(group)) continue;
                 string itemTag = tags.FirstOrDefault(x => itemPattern.IsMatch(x));
-                float angle = GetFloat(decoration, "trackAngle");
+                float angle = ReadManagedRhythmAngle(decoration,
+                    GetFloat(decoration, "trackAngle"));
                 if (float.IsNaN(angle) || float.IsInfinity(angle) || angle < 0f || angle > 360f)
                     throw new InvalidOperationException((itemTag ?? group) + "のtrackAngleが0～360の範囲外です。");
 
@@ -343,31 +347,80 @@ namespace Kiner.ADOFAIEditorQoL.Core
             return new Vector2(position.x / tileSize, position.y / tileSize);
         }
 
-        private static float GetTrackRotation(scrFloor floor)
+        private static float GetTrackRotation(scrFloor floor, float visualAngle)
         {
-            // AddObject's floor mesh does not use the ordinary world-space segment angle.
-            // Use the floor's actual travel direction instead of comparing the raw angle
-            // values. A numeric comparison flips at the 0/360-degree boundary.
-            double direction = floor.exitangle - Math.PI * 1.5d;
-            double side = floor.isCCW ? 1d : -1d;
-            return NormalizeSignedDegrees((float)(direction * Mathf.Rad2Deg * side));
+            // AddObject's Floor rotation is based on the outer edge of the smaller arc,
+            // not directly on isCCW. This is the same endpoint selection used by existing
+            // multiple-track generators.
+            float entryDirection = NormalizeDegrees(
+                90f - (float)(floor.entryangle * Mathf.Rad2Deg));
+            float exitDirection = NormalizeDegrees(
+                90f - (float)(floor.exitangle * Mathf.Rad2Deg));
+            float rotation;
+            if (entryDirection > exitDirection)
+            {
+                rotation = entryDirection - exitDirection > 180f
+                    ? entryDirection
+                    : exitDirection;
+            }
+            else
+            {
+                rotation = exitDirection - entryDirection > 180f
+                    ? exitDirection
+                    : entryDirection;
+            }
+            return NormalizeSignedDegrees(rotation + visualAngle + 180f);
         }
 
-        private static float GetTrackAngle(scrFloor floor)
+        private static float GetVisualTrackAngle(scrFloor floor)
         {
-            // This is the same wrap-aware calculation ADOFAI uses for event arcs.
-            // Keep zero for retracing/midspin floors: AddObject uses that value as its
-            // full-turn representation.
+            float entryDirection = NormalizeDegrees(
+                90f - (float)(floor.entryangle * Mathf.Rad2Deg));
+            float exitDirection = NormalizeDegrees(
+                90f - (float)(floor.exitangle * Mathf.Rad2Deg));
+            float difference = Mathf.Abs(exitDirection - entryDirection);
+            return difference > 180f ? 360f - difference : difference;
+        }
+
+        private static float GetRhythmAngle(scrFloor floor)
+        {
             double moved = scrMisc.GetAngleMoved(floor.entryangle, floor.exitangle,
                 !floor.isCCW);
-            if (Math.Abs(moved) <= 0.000001d) return 0f;
+            if (Math.Abs(moved) <= 0.000001d) return 360f;
             return Mathf.Rad2Deg * (float)moved;
+        }
+
+        private static float NormalizeDegrees(float value)
+        {
+            float normalized = Mathf.Repeat(value, 360f);
+            return Mathf.Abs(normalized) < 0.000001f ? 0f : normalized;
         }
 
         private static float NormalizeSignedDegrees(float value)
         {
             float normalized = Mathf.Repeat(value + 180f, 360f) - 180f;
             return Mathf.Abs(normalized) < 0.000001f ? 0f : normalized;
+        }
+
+        private static string EncodeRhythmAngle(float angle)
+        {
+            int encoded = Mathf.RoundToInt(Mathf.Clamp(angle, 0f, 360f) * 10000f);
+            return DecorationMarkerTags.ManagedMultiTileRhythmPrefix +
+                   encoded.ToString(CultureInfo.InvariantCulture);
+        }
+
+        internal static float ReadManagedRhythmAngle(LevelEvent decoration, float fallback)
+        {
+            string marker = DecorationMarkerTags.FindTag(decoration,
+                DecorationMarkerTags.ManagedMultiTileRhythmPrefix);
+            if (marker == null) return fallback;
+            string encodedText = marker.Substring(
+                DecorationMarkerTags.ManagedMultiTileRhythmPrefix.Length);
+            int encoded;
+            if (!int.TryParse(encodedText, NumberStyles.None,
+                    CultureInfo.InvariantCulture, out encoded) ||
+                encoded < 0 || encoded > 3600000) return fallback;
+            return encoded / 10000f;
         }
 
         private static void ApplyTrackIcon(scnEditor editor, int floorNumber, scrFloor floor,
