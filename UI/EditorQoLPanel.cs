@@ -610,7 +610,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 });
             });
             CreateText(content.transform,
-                "生成物と公転イベントは選択範囲の先頭1タイルへ集約します。惑星はADOFAI標準のMoveDecorationsで再生し、焼き込み時に公転イベントとプレビュー惑星を削除します。",
+                "床デコレーションと惑星は選択範囲の先頭タイルへ集約し、公転イベントは競合防止のため元タイルへ分散します。惑星はADOFAI標準のMoveDecorationsで再生し、焼き込み時に公転イベントとプレビュー惑星を削除します。",
                 10f, FontStyles.Normal, TextAlignmentOptions.Left);
             Button bakeMultiTile = CreateButton(content.transform, "マルチタイルのリズムを実タイルへ焼き込む", 0f, 40f);
             bakeMultiTile.onClick.AddListener(delegate
