@@ -25,7 +25,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
         {
             // Floor 0 includes the countdown in its entry-time interval. Starting a
             // native planet conversion there would make the first orbit wait through
-            // the countdown and desynchronise every compressed MoveDecorations event.
+            // the countdown.
             FloorRange range = EditorSelection.GetRange(editor, false);
             if (range.Count < 2)
                 throw new InvalidOperationException("マルチタイル生成には、連続した実タイルを2個以上選択してください。");
@@ -41,8 +41,8 @@ namespace Kiner.ADOFAIEditorQoL.Core
             {
                 scrFloor floor = editor.floors[floorNumber];
                 int index = floorNumber - range.Start;
-                // Keep every generated object on one anchor floor so the complete
-                // multi-tile can be copied by copying that single tile.
+                // Keep the static floor-object snapshot on one anchor floor. Timed
+                // MoveDecorations are distributed separately to avoid tween conflicts.
                 LevelEvent decoration = new LevelEvent(range.Start, LevelEventType.AddObject);
                 SetEnabled(decoration, "objectType", ObjectDecorationType.Floor);
                 SetEnumText(decoration, "relativeTo", "Global");
@@ -82,7 +82,10 @@ namespace Kiner.ADOFAIEditorQoL.Core
             return generatedGroup + "として床デコレーションを" + range.Count + "個" +
                    (includePlanets ? "、惑星を2個、ネイティブ公転イベントを" +
                     createdEvents.Count.ToString(CultureInfo.InvariantCulture) + "件" : string.Empty) +
-                   "生成し、先頭の1タイルにまとめました。";
+                   "生成しました。" +
+                   (includePlanets
+                       ? " 床デコレーションと惑星は先頭タイル、公転イベントは元タイルへ配置しました。"
+                       : " 床デコレーションは先頭タイルにまとめました。");
         }
 
         public static string BakeToSelectedTiles(scnEditor editor, string requestedGroup)
@@ -188,9 +191,6 @@ namespace Kiner.ADOFAIEditorQoL.Core
         {
             string blueTag = planetGroup + "_BluePlanet";
             string redTag = planetGroup + "_RedPlanet";
-            int anchorFloor = range.Start;
-            scrFloor anchor = editor.floors[anchorFloor];
-            float anchorBpm = Math.Max(0.0001f, EffectiveBpm(editor, anchorFloor));
 
             // Start from ADOFAI's own planets, then immediately hand control to ordinary
             // MoveDecorations events. This is the same approach used by the original
@@ -210,18 +210,21 @@ namespace Kiner.ADOFAIEditorQoL.Core
                 float orbitDegrees = ResolveOrbitDegrees(editor, floorNumber, motionSeconds);
                 float targetRotation = baseRotation +
                     (floor.isCCW ? orbitDegrees : -orbitDegrees);
-                float angleOffset = (float)Math.Max(0d,
-                    (floor.entryTime - anchor.entryTime) * anchorBpm * 3d);
-                float duration = (float)Math.Max(0d, motionSeconds * anchorBpm / 60d);
+                float localBpm = Math.Max(0.0001f, EffectiveBpm(editor, floorNumber));
+                float duration = (float)Math.Max(0d, motionSeconds * localBpm / 60d);
                 bool evenStep = (floorNumber - range.Start + 1) % 2 == 0;
 
-                events.Add(CreatePlanetMove(anchorFloor, redTag, 0f, angleOffset, center,
+                // Keep each native tween on the tile where it actually starts. Several
+                // delayed MoveDecorations attached to one floor all target the same
+                // decoration tween slots and can complete/kill each other while the
+                // editor scrubs or restarts playback.
+                events.Add(CreatePlanetMove(floorNumber, redTag, 0f, 0f, center,
                     new Vector2(evenStep ? 0f : 1f, float.NaN), baseRotation));
-                events.Add(CreatePlanetMove(anchorFloor, blueTag, 0f, angleOffset, center,
+                events.Add(CreatePlanetMove(floorNumber, blueTag, 0f, 0f, center,
                     new Vector2(evenStep ? 1f : 0f, float.NaN), baseRotation));
-                events.Add(CreatePlanetMove(anchorFloor, redTag, duration, angleOffset,
+                events.Add(CreatePlanetMove(floorNumber, redTag, duration, 0f,
                     center, new Vector2(float.NaN, float.NaN), targetRotation));
-                events.Add(CreatePlanetMove(anchorFloor, blueTag, duration, angleOffset,
+                events.Add(CreatePlanetMove(floorNumber, blueTag, duration, 0f,
                     center, new Vector2(float.NaN, float.NaN), targetRotation));
             }
         }
