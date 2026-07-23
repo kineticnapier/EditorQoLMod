@@ -74,6 +74,10 @@ namespace Kiner.ADOFAIEditorQoL.Core
             {
                 foreach (LevelEvent decoration in created) editor.decorations.Add(decoration);
                 foreach (LevelEvent levelEvent in createdEvents) editor.events.Add(levelEvent);
+                // Rebuild each floor's ffxPlusBase list immediately. Without this, the
+                // editor can keep executing the MoveDecorations set from before generation
+                // until the chart is reloaded.
+                editor.ApplyEventsToFloors();
                 editor.UpdateDecorationObjects();
                 if (editor.propertyControlDecorationsList != null)
                     editor.propertyControlDecorationsList.RefreshItemsList(true);
@@ -333,6 +337,9 @@ namespace Kiner.ADOFAIEditorQoL.Core
                     editor.decorations.Remove(decoration);
                 foreach (LevelEvent evnt in removeEvents)
                     editor.events.Remove(evnt);
+                // Removing LevelEvent objects does not remove the ffx components already
+                // attached to floors. Rebuild them before refreshing the decorations.
+                editor.ApplyEventsToFloors();
                 editor.UpdateDecorationObjects();
                 if (editor.propertyControlDecorationsList != null)
                     editor.propertyControlDecorationsList.RefreshItemsList(true);
