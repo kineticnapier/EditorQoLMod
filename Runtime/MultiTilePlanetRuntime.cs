@@ -33,6 +33,11 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             internal double LastAudioTime = double.NaN;
             internal float PlaybackGameTimeStart;
             internal int LastObservedFloor = -1;
+            internal bool NativeMappingReady;
+            internal Vector2 NativeOrigin;
+            internal Vector2 PreviewOrigin;
+            internal float NativeRotationDelta;
+            internal float NativeScale = 1f;
         }
 
         private sealed class InferredGroup
@@ -423,7 +428,7 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
                     transform.GetComponent<scrDecoration>() != null ||
                     !seen.Add(transform.GetInstanceID())) continue;
                 nativePlanets.Add(transform);
-                if (nativePlanets.Count >= 4) break;
+                if (nativePlanets.Count >= 3) break;
             }
 
             nextNativePlanetResolveFrame = Time.frameCount +
@@ -535,7 +540,11 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             string label, Type sourceType)
         {
             if (transform == null || transform.GetComponent<scrDecoration>() != null) return;
-            string normalized = (label ?? string.Empty).ToLowerInvariant();
+            string normalized = ((label ?? string.Empty) + " " + transform.name)
+                .ToLowerInvariant();
+            if (normalized.Contains("system") || normalized.Contains("holder") ||
+                normalized.Contains("container") || normalized.Contains("pivot"))
+                return;
             int score = 200;
             if (normalized.Contains("planet1") || normalized.Contains("blue")) score -= 120;
             else if (normalized.Contains("planet2") || normalized.Contains("red")) score -= 100;
@@ -567,18 +576,21 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             if (sourceIndex < 0 || sourceIndex >= session.Path.Length) return false;
 
             Vector2 nativeCenter = FloorPosition(floors[sourceFloor]);
-            Vector2 previewCenter = Position(session.Path[sourceIndex]);
-            Vector2 nativeBasis;
-            Vector2 previewBasis;
-            if (!TryResolveMappingBasis(session, floors, sourceFloor, end,
-                    nativeCenter, previewCenter, out nativeBasis, out previewBasis))
+            if (!TryInitializeNativeMapping(session, floors, start, end))
                 return false;
 
-            float nativeLength = nativeBasis.magnitude;
-            float previewLength = previewBasis.magnitude;
-            if (nativeLength < 0.000001f || previewLength < 0.000001f) return false;
-            float rotationDelta = DirectionAngle(previewBasis) - DirectionAngle(nativeBasis);
-            float scale = previewLength / nativeLength;
+            Transform nativeBlue = FindNativePlanet(native, "blue");
+            Transform nativeRed = FindNativePlanet(native, "red");
+            if (nativeBlue != null && nativeRed != null)
+            {
+                SetPlanet(session.Blue, MapNativePosition(session, nativeBlue),
+                    nativeBlue.eulerAngles.z + session.NativeRotationDelta);
+                SetPlanet(session.Red, MapNativePosition(session, nativeRed),
+                    nativeRed.eulerAngles.z + session.NativeRotationDelta);
+                session.PlaybackStarted = false;
+                session.LastObservedFloor = currentFloor;
+                return true;
+            }
 
             Transform stationary = null;
             Transform moving = null;
@@ -610,12 +622,10 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             }
             if (stationary == null || moving == null) return false;
 
-            Vector2 stationaryPosition = MapNativePosition(stationary, nativeCenter,
-                previewCenter, rotationDelta, scale);
-            Vector2 movingPosition = MapNativePosition(moving, nativeCenter,
-                previewCenter, rotationDelta, scale);
-            float stationaryRotation = stationary.eulerAngles.z + rotationDelta;
-            float movingRotation = moving.eulerAngles.z + rotationDelta;
+            Vector2 stationaryPosition = MapNativePosition(session, stationary);
+            Vector2 movingPosition = MapNativePosition(session, moving);
+            float stationaryRotation = stationary.eulerAngles.z + session.NativeRotationDelta;
+            float movingRotation = moving.eulerAngles.z + session.NativeRotationDelta;
             bool moveRed = CountPriorSegments(session, floors, sourceFloor) % 2 == 0;
             if (moveRed)
             {
@@ -633,45 +643,47 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             return true;
         }
 
-        private static bool TryResolveMappingBasis(PreviewSession session,
-            IList<scrFloor> floors, int sourceFloor, int end, Vector2 nativeCenter,
-            Vector2 previewCenter, out Vector2 nativeBasis, out Vector2 previewBasis)
+        private static Transform FindNativePlanet(IEnumerable<Transform> native, string color)
         {
-            nativeBasis = Vector2.zero;
-            previewBasis = Vector2.zero;
-            for (int floor = sourceFloor + 1; floor <= end; floor++)
+            return native.FirstOrDefault(x => x != null && x.name != null &&
+                x.name.IndexOf(color, StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+
+        private static bool TryInitializeNativeMapping(PreviewSession session,
+            IList<scrFloor> floors, int start, int end)
+        {
+            if (session.NativeMappingReady) return session.NativeScale > 0.000001f;
+            int originIndex = start - session.Command.StartFloor;
+            if (originIndex < 0 || originIndex >= session.Path.Length) return false;
+
+            Vector2 nativeOrigin = FloorPosition(floors[start]);
+            Vector2 previewOrigin = Position(session.Path[originIndex]);
+            for (int floor = start + 1; floor <= end; floor++)
             {
                 int index = floor - session.Command.StartFloor;
                 if (index < 0 || index >= session.Path.Length) break;
-                Vector2 candidateNative = FloorPosition(floors[floor]) - nativeCenter;
-                Vector2 candidatePreview = Position(session.Path[index]) - previewCenter;
+                Vector2 candidateNative = FloorPosition(floors[floor]) - nativeOrigin;
+                Vector2 candidatePreview = Position(session.Path[index]) - previewOrigin;
                 if (candidateNative.sqrMagnitude < 0.000001f ||
                     candidatePreview.sqrMagnitude < 0.000001f) continue;
-                nativeBasis = candidateNative;
-                previewBasis = candidatePreview;
-                return true;
-            }
 
-            for (int floor = sourceFloor - 1; floor >= session.Command.StartFloor; floor--)
-            {
-                int index = floor - session.Command.StartFloor;
-                if (index < 0 || index >= session.Path.Length) continue;
-                Vector2 candidateNative = FloorPosition(floors[floor]) - nativeCenter;
-                Vector2 candidatePreview = Position(session.Path[index]) - previewCenter;
-                if (candidateNative.sqrMagnitude < 0.000001f ||
-                    candidatePreview.sqrMagnitude < 0.000001f) continue;
-                nativeBasis = candidateNative;
-                previewBasis = candidatePreview;
+                session.NativeOrigin = nativeOrigin;
+                session.PreviewOrigin = previewOrigin;
+                session.NativeRotationDelta = DirectionAngle(candidatePreview) -
+                                              DirectionAngle(candidateNative);
+                session.NativeScale = candidatePreview.magnitude /
+                                      candidateNative.magnitude;
+                session.NativeMappingReady = true;
                 return true;
             }
             return false;
         }
 
-        private static Vector2 MapNativePosition(Transform native, Vector2 nativeCenter,
-            Vector2 previewCenter, float rotationDelta, float scale)
+        private static Vector2 MapNativePosition(PreviewSession session, Transform native)
         {
-            Vector2 offset = TransformPosition(native) - nativeCenter;
-            return previewCenter + Rotate(offset, rotationDelta) * scale;
+            Vector2 offset = TransformPosition(native) - session.NativeOrigin;
+            return session.PreviewOrigin +
+                   Rotate(offset, session.NativeRotationDelta) * session.NativeScale;
         }
 
         private static Vector2 FloorPosition(scrFloor floor)
