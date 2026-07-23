@@ -66,6 +66,8 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
         private scrController nativeController;
         private readonly List<Transform> nativePlanets = new List<Transform>();
         private int nextNativePlanetResolveFrame;
+        private int nativeResolveBurstUntilFrame;
+        private int lastCurrentFloor = -1;
 
         private static Type nativePlanetMemberType;
         private static MemberInfo[] nativePlanetMembers = new MemberInfo[0];
@@ -93,6 +95,8 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             nativeController = null;
             nativePlanets.Clear();
             nextNativePlanetResolveFrame = 0;
+            nativeResolveBurstUntilFrame = 0;
+            lastCurrentFloor = -1;
             lastAudioSource = null;
             lastAudioTime = 0d;
             lastAudioSampleTime = 0d;
@@ -120,6 +124,25 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             if (sessions.Count == 0) return;
 
             int currentFloor = GetCurrentFloor();
+            if (lastCurrentFloor >= 0 && currentFloor < lastCurrentFloor)
+            {
+                // Retry keeps the first attempt's native planet objects alive briefly.
+                // Drop that cache and re-resolve for several frames while the controller
+                // swaps its PlanetBlue/PlanetRed references to the new attempt.
+                nativeController = null;
+                nativePlanets.Clear();
+                nextNativePlanetResolveFrame = 0;
+                nativeResolveBurstUntilFrame = Time.frameCount + 15;
+                lastAudioSource = null;
+                audioClockInitialized = false;
+                for (int i = 0; i < sessions.Count; i++)
+                {
+                    sessions[i].PlaybackStarted = false;
+                    sessions[i].LastAudioTime = double.NaN;
+                    sessions[i].LastObservedFloor = -1;
+                }
+            }
+            lastCurrentFloor = currentFloor;
             IList<scrFloor> floors = scrLevelMaker.instance.listFloors;
             IList<Transform> native = ResolveNativePlanets();
             bool usedNative = false;
@@ -382,7 +405,9 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             bool cacheValid = controller != null && ReferenceEquals(controller, nativeController) &&
                               nativePlanets.Count >= 2 &&
                               nativePlanets.All(x => x != null && x.gameObject.activeInHierarchy);
-            if (cacheValid && Time.frameCount < nextNativePlanetResolveFrame)
+            bool resolvingAfterRetry = Time.frameCount <= nativeResolveBurstUntilFrame;
+            if (cacheValid && !resolvingAfterRetry &&
+                Time.frameCount < nextNativePlanetResolveFrame)
                 return nativePlanets;
 
             nativeController = controller;
@@ -432,7 +457,9 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             }
 
             nextNativePlanetResolveFrame = Time.frameCount +
-                                           (nativePlanets.Count >= 2 ? 120 : 15);
+                                           (resolvingAfterRetry
+                                               ? 1
+                                               : nativePlanets.Count >= 2 ? 120 : 15);
             return nativePlanets;
         }
 
