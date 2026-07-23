@@ -17,6 +17,8 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
         internal static void CleanupPlaybackEffects()
         {
             DestroyRuntimeComponents<TutorialBackgroundRuntime>();
+            if (scrDecorationManager.instance != null)
+                scrDecorationManager.instance.ResetDecorations();
         }
 
         internal static void ReactivateCurrentScene()
