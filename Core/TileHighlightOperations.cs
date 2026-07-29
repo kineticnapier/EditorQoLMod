@@ -26,6 +26,80 @@ namespace Kiner.ADOFAIEditorQoL.Core
         LessOrEqual
     }
 
+    internal sealed class TileHighlightArrowRuntime : MonoBehaviour
+    {
+        private const float TipOffsetPixels = 18f;
+        private const float ShaftLengthPixels = 72f;
+        private const float HeadWidthPixels = 16f;
+        private const float HeadHeightPixels = 20f;
+        private const float LineWidthPixels = 4f;
+        private static UnityEngine.Camera cachedCamera;
+
+        private readonly Vector3[] points = new Vector3[5];
+        private scrFloor target;
+        private UnityEngine.LineRenderer line;
+
+        internal void Configure(scrFloor floor, UnityEngine.LineRenderer renderer)
+        {
+            target = floor;
+            line = renderer;
+            UpdateGeometry();
+        }
+
+        private void LateUpdate()
+        {
+            UpdateGeometry();
+        }
+
+        private void UpdateGeometry()
+        {
+            UnityEngine.Camera camera = ResolveCamera();
+            if (target == null || line == null || camera == null)
+            {
+                if (line != null) line.enabled = false;
+                return;
+            }
+
+            Vector3 targetScreen = camera.WorldToScreenPoint(target.transform.position);
+            if (targetScreen.z <= 0f)
+            {
+                line.enabled = false;
+                return;
+            }
+
+            Vector3 tipScreen = targetScreen + new Vector3(0f, TipOffsetPixels, 0f);
+            Vector3 topScreen = tipScreen + new Vector3(0f, ShaftLengthPixels, 0f);
+            Vector3 leftScreen = tipScreen + new Vector3(-HeadWidthPixels, HeadHeightPixels, 0f);
+            Vector3 rightScreen = tipScreen + new Vector3(HeadWidthPixels, HeadHeightPixels, 0f);
+
+            points[0] = camera.ScreenToWorldPoint(topScreen);
+            points[1] = camera.ScreenToWorldPoint(tipScreen);
+            points[2] = camera.ScreenToWorldPoint(leftScreen);
+            points[3] = points[1];
+            points[4] = camera.ScreenToWorldPoint(rightScreen);
+            line.SetPositions(points);
+
+            Vector3 pixelOrigin = camera.ScreenToWorldPoint(new Vector3(0f, 0f, targetScreen.z));
+            Vector3 pixelStep = camera.ScreenToWorldPoint(new Vector3(1f, 0f, targetScreen.z));
+            float width = Mathf.Max(0.01f, Vector3.Distance(pixelOrigin, pixelStep) * LineWidthPixels);
+            line.startWidth = width;
+            line.endWidth = width;
+            line.enabled = true;
+        }
+
+        private static UnityEngine.Camera ResolveCamera()
+        {
+            if (cachedCamera != null && cachedCamera.isActiveAndEnabled) return cachedCamera;
+
+            cachedCamera = UnityEngine.Camera.main;
+            if (cachedCamera != null && cachedCamera.isActiveAndEnabled) return cachedCamera;
+
+            cachedCamera = UnityEngine.Resources.FindObjectsOfTypeAll<UnityEngine.Camera>()
+                .FirstOrDefault(x => x != null && x.isActiveAndEnabled);
+            return cachedCamera;
+        }
+    }
+
     internal static class TileHighlightOperations
     {
         internal const string EventExistsProperty = "__event_exists__";
@@ -350,6 +424,32 @@ namespace Kiner.ADOFAIEditorQoL.Core
                 line.sortingLayerID = floorRenderer.sortingLayerID;
                 line.sortingOrder = 32760;
             }
+
+            UnityEngine.GameObject arrowObject = new UnityEngine.GameObject("Arrow");
+            arrowObject.hideFlags = HideFlags.DontSave;
+            arrowObject.layer = marker.layer;
+            arrowObject.transform.SetParent(marker.transform, false);
+            arrowObject.transform.localPosition = Vector3.zero;
+            arrowObject.transform.localRotation = Quaternion.identity;
+            arrowObject.transform.localScale = Vector3.one;
+
+            UnityEngine.LineRenderer arrow = arrowObject.AddComponent<UnityEngine.LineRenderer>();
+            arrow.enabled = true;
+            arrow.useWorldSpace = true;
+            arrow.loop = false;
+            arrow.positionCount = 5;
+            arrow.startColor = new Color(1f, 0.65f, 0.05f, 1f);
+            arrow.endColor = arrow.startColor;
+            arrow.sharedMaterial = markerMaterial;
+            if (floorRenderer != null)
+            {
+                arrow.sortingLayerID = floorRenderer.sortingLayerID;
+                arrow.sortingOrder = 32761;
+            }
+
+            TileHighlightArrowRuntime arrowRuntime =
+                arrowObject.AddComponent<TileHighlightArrowRuntime>();
+            arrowRuntime.Configure(floor, arrow);
             Markers.Add(marker);
         }
     }

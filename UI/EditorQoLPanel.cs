@@ -1146,7 +1146,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
 
             Section(content.transform, "条件タイル強調");
             CreateText(content.transform,
-                "イベントの種類・項目値、または実効BPM/速度倍率に一致するタイルへ黄色いリングを表示します。譜面データは変更しません。",
+                "イベントの種類・項目値、または実効BPM/速度倍率に一致するタイルへ黄色いリングと矢印を表示します。譜面データは変更しません。",
                 11f, FontStyles.Normal, TextAlignmentOptions.Left);
             tileHighlightMode = CreateDropdown(content.transform, new[]
             {
