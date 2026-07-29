@@ -241,8 +241,9 @@ namespace Kiner.ADOFAIEditorQoL.Core
 
             double actualNumber;
             double expectedNumber;
-            bool bothNumbers = TryNumber(actual, out actualNumber) &&
-                               TryNumber(expectedValue, out expectedNumber);
+            bool actualIsNumber = TryNumber(actual, out actualNumber);
+            bool expectedIsNumber = TryNumber(expectedValue, out expectedNumber);
+            bool bothNumbers = actualIsNumber && expectedIsNumber;
             if (RequiresNumber(comparison))
             {
                 if (!bothNumbers) return false;
