@@ -8,6 +8,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
         private static void Postfix(scnEditor __instance)
         {
             Core.Pacl2UndoBridge.Cleanup();
+            Core.TileHighlightOperations.Clear();
             if (Main.Enabled)
             {
                 UI.EditorQoLPanel.Attach(__instance);

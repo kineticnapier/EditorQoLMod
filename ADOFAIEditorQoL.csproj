@@ -69,6 +69,7 @@
     <Compile Include="Core\EditorQoLPreferences.cs" />
     <Compile Include="Core\SelectionRangeStore.cs" />
     <Compile Include="Core\EventSearchOperations.cs" />
+    <Compile Include="Core\TileHighlightOperations.cs" />
     <Compile Include="Core\DecorationMarkerTags.cs" />
     <Compile Include="Core\TextMaskOperations.cs" />
     <Compile Include="Core\CustomFontOperations.cs" />

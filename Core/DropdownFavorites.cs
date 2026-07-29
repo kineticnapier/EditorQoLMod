@@ -41,33 +41,48 @@ namespace Kiner.ADOFAIEditorQoL.Core
             lastLabel = string.IsNullOrEmpty(item.localizedValue) ? item.value : item.localizedValue;
         }
 
-        internal static void Apply(TweakableDropdown dropdown)
+        internal static void ApplyVisualOrder(TweakableDropdown dropdown)
         {
-            if (!CanManage(dropdown) || dropdown.itemValues == null || dropdown.itemValues.Count < 2) return;
+            if (!CanManage(dropdown) || dropdown.items == null || dropdown.items.Count < 2 ||
+                dropdown.items.Any(x => x == null))
+                return;
+
             string scope = GetScope(dropdown);
             DropdownFavoriteGroup group = GetGroup(scope, false);
             if (group == null || group.values == null || group.values.Count == 0) return;
 
-            List<string> originalValues = new List<string>(dropdown.itemValues);
-            HashSet<string> favoriteSet = new HashSet<string>(group.values, StringComparer.Ordinal);
-            List<string> ordered = group.values.Where(originalValues.Contains)
-                .Concat(originalValues.Where(x => !favoriteSet.Contains(x))).ToList();
-            if (ordered.SequenceEqual(originalValues)) return;
-
-            Dictionary<string, string> labels = null;
-            if (dropdown.useCustomLabels && dropdown.customLabels != null &&
-                dropdown.customLabels.Count == originalValues.Count)
+            Dictionary<string, int> favoriteOrder = new Dictionary<string, int>(StringComparer.Ordinal);
+            for (int i = 0; i < group.values.Count; i++)
             {
-                labels = new Dictionary<string, string>(StringComparer.Ordinal);
-                for (int i = 0; i < originalValues.Count; i++) labels[originalValues[i]] = dropdown.customLabels[i];
+                string value = group.values[i];
+                if (!string.IsNullOrEmpty(value) && !favoriteOrder.ContainsKey(value))
+                    favoriteOrder.Add(value, i);
             }
 
-            dropdown.itemValues.Clear();
-            dropdown.itemValues.AddRange(ordered);
-            if (labels != null)
+            List<TweakableDropdownItem> original = new List<TweakableDropdownItem>(dropdown.items);
+            List<TweakableDropdownItem> ordered = original
+                .OrderBy(item =>
+                {
+                    int rank;
+                    return favoriteOrder.TryGetValue(item.value ?? string.Empty, out rank)
+                        ? rank
+                        : int.MaxValue;
+                })
+                .ToList();
+            if (ordered.SequenceEqual(original)) return;
+
+            // Do not reorder itemValues/customItemValues/customLabels. The game keeps the
+            // displayed label and semantic value in separate parallel lists, so changing only
+            // some of those lists makes a click select a different value. Move the instantiated
+            // item objects as one unit instead.
+            List<int> siblingSlots = original.Select(x => x.transform.GetSiblingIndex())
+                .OrderBy(x => x).ToList();
+            dropdown.items.Clear();
+            dropdown.items.AddRange(ordered);
+            for (int i = ordered.Count - 1; i >= 0; i--)
             {
-                dropdown.customLabels.Clear();
-                foreach (string value in ordered) dropdown.customLabels.Add(labels[value]);
+                if (ordered[i] != null && ordered[i].transform != null)
+                    ordered[i].transform.SetSiblingIndex(siblingSlots[i]);
             }
         }
 
@@ -190,11 +205,37 @@ namespace Kiner.ADOFAIEditorQoL.Core
                     DropdownFavoriteData loaded = JsonUtility.FromJson<DropdownFavoriteData>(File.ReadAllText(filePath));
                     if (loaded != null && loaded.groups != null) data = loaded;
                 }
+                NormalizeLoadedData();
             }
             catch (Exception ex)
             {
                 Main.Logger.Warning("お気に入り設定を読み込めませんでした: " + ex.Message);
+                data = new DropdownFavoriteData();
             }
+        }
+
+        private static void NormalizeLoadedData()
+        {
+            if (data == null) data = new DropdownFavoriteData();
+            if (data.groups == null) data.groups = new List<DropdownFavoriteGroup>();
+
+            List<DropdownFavoriteGroup> normalized = new List<DropdownFavoriteGroup>();
+            foreach (DropdownFavoriteGroup source in data.groups)
+            {
+                if (source == null || string.IsNullOrWhiteSpace(source.scope)) continue;
+                DropdownFavoriteGroup target = normalized.FirstOrDefault(x => x.scope == source.scope);
+                if (target == null)
+                {
+                    target = new DropdownFavoriteGroup { scope = source.scope };
+                    normalized.Add(target);
+                }
+
+                if (source.values == null) continue;
+                foreach (string value in source.values)
+                    if (!string.IsNullOrEmpty(value) && !target.values.Contains(value))
+                        target.values.Add(value);
+            }
+            data.groups = normalized;
         }
 
         internal static void Save()

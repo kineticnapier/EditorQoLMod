@@ -1,4 +1,5 @@
 using UnityEngine;
+using Kiner.ADOFAIEditorQoL.Core;
 
 namespace Kiner.ADOFAIEditorQoL.Runtime
 {
@@ -6,6 +7,7 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
     {
         internal static void Cleanup()
         {
+            TileHighlightOperations.Clear();
             DestroyRuntimeComponents<TextMaskRuntime>();
             DestroyRuntimeComponents<TutorialBackgroundRuntime>();
             DestroyRuntimeComponents<MultiTileDecorationRuntime>();
