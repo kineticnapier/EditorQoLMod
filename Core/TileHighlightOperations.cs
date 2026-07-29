@@ -7,22 +7,6 @@ using UnityEngine;
 
 namespace Kiner.ADOFAIEditorQoL.Core
 {
-    internal sealed class TileHighlightMarkerRuntime : MonoBehaviour
-    {
-        private UnityEngine.LineRenderer line;
-
-        private void Awake()
-        {
-            line = GetComponent<UnityEngine.LineRenderer>();
-        }
-
-        private void LateUpdate()
-        {
-            if (line == null) line = GetComponent<UnityEngine.LineRenderer>();
-            if (line != null) line.enabled = scnGame.instance == null;
-        }
-    }
-
     internal enum TileHighlightMode
     {
         Event,
@@ -343,6 +327,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
             marker.transform.localScale = Vector3.one;
 
             UnityEngine.LineRenderer line = marker.AddComponent<UnityEngine.LineRenderer>();
+            line.enabled = true;
             line.useWorldSpace = false;
             line.loop = true;
             line.positionCount = 40;
@@ -363,9 +348,8 @@ namespace Kiner.ADOFAIEditorQoL.Core
             if (floorRenderer != null)
             {
                 line.sortingLayerID = floorRenderer.sortingLayerID;
-                line.sortingOrder = floorRenderer.sortingOrder + 100;
+                line.sortingOrder = 32760;
             }
-            marker.AddComponent<TileHighlightMarkerRuntime>();
             Markers.Add(marker);
         }
     }
