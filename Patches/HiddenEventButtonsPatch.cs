@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using ADOFAI;
 using HarmonyLib;
+using Kiner.ADOFAIEditorQoL.Core;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -110,7 +111,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
 
                 LevelEventType type = RDUtils.ParseEnum<LevelEventType>(info.name, LevelEventType.None);
                 if (type == LevelEventType.None) continue;
-                if (Array.IndexOf(EditorConstants.settingsTypes, type) >= 0) continue;
+                if (GameVersionCompat.IsSettingsType(type)) continue;
 
                 bool explicitlyOmitted = string.Equals(info.name, "ChangeTrack", StringComparison.Ordinal) ||
                                          string.Equals(info.name, "FreeRoamWarning", StringComparison.Ordinal);

@@ -46,6 +46,7 @@
     <Compile Include="ModVersion.cs" />
     <Compile Include="Localization\JapaneseLocalization.cs" />
     <Compile Include="Core\EditorSelection.cs" />
+    <Compile Include="Core\GameVersionCompat.cs" />
     <Compile Include="Core\EditorUndoScope.cs" />
     <Compile Include="Core\PatternParser.cs" />
     <Compile Include="Core\PatternOperations.cs" />

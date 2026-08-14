@@ -31,7 +31,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
                 }
             }
 
-            foreach (var group in editor.events.Where(x => EditorConstants.soloTypes.Contains(x.eventType))
+            foreach (var group in editor.events.Where(x => GameVersionCompat.IsSoloType(x.eventType))
                 .GroupBy(x => new { x.floor, x.eventType }).Where(x => x.Count() > 1))
                 issues.Add("soloイベント重複: floor " + group.Key.floor + " / " +
                     JapaneseLocalization.EventLabel(group.Key.eventType.ToString()) + " ×" + group.Count());
@@ -70,7 +70,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
             remove.AddRange(all.Where(x => x.floor == 0 && x.info != null && !x.info.allowFirstFloorCheck));
             remove.AddRange(editor.events.Where(x => x.floor == maxFloor && x.eventType == LevelEventType.FreeRoam));
 
-            foreach (var group in editor.events.Where(x => EditorConstants.soloTypes.Contains(x.eventType))
+            foreach (var group in editor.events.Where(x => GameVersionCompat.IsSoloType(x.eventType))
                 .GroupBy(x => new { x.floor, x.eventType }).Where(x => x.Count() > 1))
                 remove.AddRange(group.Skip(1));
 

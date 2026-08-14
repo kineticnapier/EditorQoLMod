@@ -397,9 +397,10 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
 
         private static Color GetCameraColor()
         {
-            return scrCamera.instance == null || scrCamera.instance.Bgcamstatic == null
+            scrCamera camera = GameVersionCompat.GetCamera();
+            return camera == null || camera.Bgcamstatic == null
                 ? Color.black
-                : scrCamera.instance.Bgcamstatic.backgroundColor;
+                : camera.Bgcamstatic.backgroundColor;
         }
 
         private void SetTileColor(Color color)
@@ -425,8 +426,9 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
 
         private static void SetCameraColor(Color color)
         {
-            if (scrCamera.instance != null && scrCamera.instance.Bgcamstatic != null)
-                scrCamera.instance.Bgcamstatic.backgroundColor = color;
+            scrCamera camera = GameVersionCompat.GetCamera();
+            if (camera != null && camera.Bgcamstatic != null)
+                camera.Bgcamstatic.backgroundColor = color;
         }
 
         private static float Ease(float t, string ease)

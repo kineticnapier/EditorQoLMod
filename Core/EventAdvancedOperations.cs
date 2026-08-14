@@ -48,7 +48,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
                         continue;
                     }
 
-                    if (overwriteSolo && EditorConstants.soloTypes.Contains(eventType))
+                    if (overwriteSolo && GameVersionCompat.IsSoloType(eventType))
                         editor.events.RemoveAll(x => x.floor == floor && x.eventType == eventType);
 
                     LevelEvent created = new LevelEvent(floor, eventType);
@@ -209,7 +209,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
         internal static bool CanPlace(scnEditor editor, LevelEventType type, int floor, bool overwriteSolo)
         {
             if (floor < 0 || floor >= editor.floors.Count) return false;
-            if (EditorConstants.soloTypes.Contains(type) && !overwriteSolo &&
+            if (GameVersionCompat.IsSoloType(type) && !overwriteSolo &&
                 editor.events.Any(x => x.floor == floor && x.eventType == type)) return false;
             if (type == LevelEventType.Hold && editor.events.Any(x => x.floor == floor && x.eventType == LevelEventType.Pause)) return false;
             if (type == LevelEventType.Pause && editor.events.Any(x => x.floor == floor && x.eventType == LevelEventType.Hold)) return false;
