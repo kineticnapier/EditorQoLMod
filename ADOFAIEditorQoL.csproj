@@ -63,7 +63,6 @@
     <Compile Include="Core\TrackAnimationRangeOperations.cs" />
     <Compile Include="Core\DecorationColorWaveOperations.cs" />
     <Compile Include="Core\MultiTileOperations.cs" />
-    <Compile Include="Core\MultiTilePlanetEvent.cs" />
     <Compile Include="Core\ExpressionEvaluator.cs" />
     <Compile Include="Core\FormulaOperations.cs" />
     <Compile Include="Core\FilterOrderOperations.cs" />
@@ -71,6 +70,7 @@
     <Compile Include="Core\EditorQoLPreferences.cs" />
     <Compile Include="Core\SelectionRangeStore.cs" />
     <Compile Include="Core\EventSearchOperations.cs" />
+    <Compile Include="Core\TileHighlightOperations.cs" />
     <Compile Include="Core\DecorationMarkerTags.cs" />
     <Compile Include="Core\TextMaskOperations.cs" />
     <Compile Include="Core\CustomFontOperations.cs" />
@@ -80,14 +80,12 @@
     <Compile Include="Patches\DropdownFavoritesPatch.cs" />
     <Compile Include="Patches\TextDecorationRuntimePatch.cs" />
     <Compile Include="Patches\TutorialBackgroundRuntimePatch.cs" />
-    <Compile Include="Patches\MultiTilePlanetRuntimePatch.cs" />
     <Compile Include="Patches\MultiTileDecorationRuntimePatch.cs" />
     <Compile Include="Patches\FakeFloorEventPatch.cs" />
     <Compile Include="Patches\DuplicateFloorsShortcutPatch.cs" />
     <Compile Include="Patches\HiddenEventButtonsPatch.cs" />
     <Compile Include="Runtime\CustomTextFontRuntime.cs" />
     <Compile Include="Runtime\MultiTileDecorationRuntime.cs" />
-    <Compile Include="Runtime\MultiTilePlanetRuntime.cs" />
     <Compile Include="Runtime\RuntimeEffects.cs" />
     <Compile Include="Runtime\TextMaskRuntime.cs" />
     <Compile Include="Runtime\TutorialBackgroundRuntime.cs" />

@@ -153,6 +153,13 @@ namespace Kiner.ADOFAIEditorQoL.UI
         private TMP_InputField eventSearchPage;
         private NativeDropdown eventSearchDropdown;
         private TMP_Text eventSearchSummary;
+        private NativeDropdown tileHighlightMode;
+        private NativeDropdown tileHighlightEventType;
+        private Toggle tileHighlightDecorationsToggle;
+        private NativeDropdown tileHighlightProperty;
+        private NativeDropdown tileHighlightComparison;
+        private NativeDropdown tileHighlightValuePreset;
+        private TMP_InputField tileHighlightValue;
         private Toggle decorationsToggle;
         private Toggle statsSelectionToggle;
         private TMP_Text statisticsText;
@@ -610,7 +617,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 });
             });
             CreateText(content.transform,
-                "惑星は専用イベントで再生し、MoveDecorationsは生成しません。焼き込みはT番号のtrackAngleを実タイルへ適用し、専用イベントとプレビュー惑星を削除します。",
+                "床デコレーションと惑星は選択範囲の先頭タイルへ集約し、公転イベントは競合防止のため元タイルへ分散します。惑星はADOFAI標準のMoveDecorationsで再生し、焼き込み時に公転イベントとプレビュー惑星を削除します。",
                 10f, FontStyles.Normal, TextAlignmentOptions.Left);
             Button bakeMultiTile = CreateButton(content.transform, "マルチタイルのリズムを実タイルへ焼き込む", 0f, 40f);
             bakeMultiTile.onClick.AddListener(delegate
@@ -1011,7 +1018,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
 
             Section(content.transform, "ドロップダウンのお気に入り");
             CreateText(content.transform,
-                "本家エディタの任意のドロップダウンで項目を選んでから、ここで★を切り替えます。フィルター以外にも使えます。",
+                "本家エディタの任意のドロップダウンで項目を選んでから、ここで★を切り替えます。項目本体を移動するため、表示と内部値はずれません。",
                 12f, FontStyles.Normal, TextAlignmentOptions.Left);
             favoriteCurrent = CreateText(content.transform, "", 14f, FontStyles.Normal, TextAlignmentOptions.Left);
             favoriteList = CreateText(content.transform, "", 12f, FontStyles.Normal, TextAlignmentOptions.Left);
@@ -1136,6 +1143,68 @@ namespace Kiner.ADOFAIEditorQoL.UI
             eventSearchType.ValueChanged += RefreshEventSearch;
             eventSearchDecorationsToggle.onValueChanged.AddListener(delegate(bool value) { RefreshEventSearch(); });
             RefreshEventSearch();
+
+            Section(content.transform, "条件タイル強調");
+            CreateText(content.transform,
+                "イベントの種類・項目値、または実効BPM/速度倍率に一致するタイルへ黄色いリングと矢印を表示します。譜面データは変更しません。",
+                11f, FontStyles.Normal, TextAlignmentOptions.Left);
+            tileHighlightMode = CreateDropdown(content.transform, new[]
+            {
+                new KeyValuePair<string, string>(TileHighlightMode.Event.ToString(), "イベント条件"),
+                new KeyValuePair<string, string>(TileHighlightMode.EffectiveBpm.ToString(), "実効BPM（基準BPM×速度倍率）"),
+                new KeyValuePair<string, string>(TileHighlightMode.SpeedMultiplier.ToString(), "速度倍率")
+            }, 40f);
+            tileHighlightEventType = CreateDropdown(content.transform,
+                JapaneseLocalization.EventOptions(TileHighlightOperations.EventTypeNames()), 40f);
+            tileHighlightEventType.SetValue(LevelEventType.SetSpeed.ToString());
+            tileHighlightDecorationsToggle = CreateToggle(content.transform,
+                "装飾イベントも含める", true, 205f);
+            tileHighlightProperty = CreateDropdown(content.transform,
+                TileHighlightOperations.PropertyOptions(LevelEventType.SetSpeed), 40f);
+            tileHighlightComparison = CreateDropdown(content.transform,
+                TileHighlightComparisonOptions(false, false), 40f);
+            tileHighlightValuePreset = CreateDropdown(content.transform, new[]
+            {
+                new KeyValuePair<string, string>(TileHighlightOperations.ManualValue, "値を手入力")
+            }, 40f);
+            tileHighlightValue = CreateInput(content.transform, false, 40f);
+            tileHighlightValue.text = "100";
+            TMP_Text highlightPlaceholder = tileHighlightValue.placeholder as TMP_Text;
+            if (highlightPlaceholder != null)
+                highlightPlaceholder.text = "比較する値（数値・文字列・ドロップダウン値）";
+
+            tileHighlightMode.ValueChanged += RefreshTileHighlightControls;
+            tileHighlightEventType.ValueChanged += RefreshTileHighlightProperties;
+            tileHighlightProperty.ValueChanged += RefreshTileHighlightValueOptions;
+            tileHighlightDecorationsToggle.onValueChanged.AddListener(delegate(bool value)
+            {
+                RefreshTileHighlightValueOptions();
+            });
+            tileHighlightValuePreset.ValueChanged += CopyTileHighlightPreset;
+
+            GameObject highlightButtons = CreateHorizontal(content.transform,
+                "Tile highlight buttons", 5f, 40f);
+            Button applyTileHighlight = CreateButton(highlightButtons.transform,
+                "強調表示を更新", 0f, 40f);
+            applyTileHighlight.onClick.AddListener(delegate
+            {
+                Run(delegate
+                {
+                    return TileHighlightOperations.Apply(editor,
+                        DropdownEnum<TileHighlightMode>(tileHighlightMode),
+                        EventOperations.ParseEventType(tileHighlightEventType.SelectedValue),
+                        tileHighlightProperty.SelectedValue,
+                        DropdownEnum<TileHighlightComparison>(tileHighlightComparison),
+                        tileHighlightValue.text, tileHighlightDecorationsToggle.isOn);
+                });
+            });
+            Button clearTileHighlight = CreateButton(highlightButtons.transform,
+                "強調解除", 0f, 40f);
+            clearTileHighlight.onClick.AddListener(delegate
+            {
+                Run(TileHighlightOperations.ClearWithMessage);
+            });
+            RefreshTileHighlightControls();
 
             Section(content.transform, "選択範囲プリセット");
             CreateText(content.transform, "現在の譜面ファイルごとに、名前付きの選択範囲を保存します。", 11f,
@@ -1948,6 +2017,144 @@ namespace Kiner.ADOFAIEditorQoL.UI
             }
         }
 
+        private void RefreshTileHighlightControls()
+        {
+            if (tileHighlightMode == null || tileHighlightProperty == null ||
+                tileHighlightComparison == null || tileHighlightValuePreset == null)
+                return;
+
+            TileHighlightMode mode = DropdownEnum<TileHighlightMode>(tileHighlightMode);
+            if (mode == TileHighlightMode.Event)
+            {
+                RefreshTileHighlightProperties();
+                return;
+            }
+
+            string label = mode == TileHighlightMode.EffectiveBpm
+                ? "実効BPM（基準BPM×速度倍率）"
+                : "速度倍率";
+            tileHighlightProperty.SetOptions(new[]
+            {
+                new KeyValuePair<string, string>("__speed_metric__", label)
+            });
+            tileHighlightComparison.SetOptions(TileHighlightComparisonOptions(false, true));
+            tileHighlightValuePreset.SetOptions(new[]
+            {
+                new KeyValuePair<string, string>(TileHighlightOperations.ManualValue, "値を手入力")
+            });
+        }
+
+        private void RefreshTileHighlightProperties()
+        {
+            if (tileHighlightMode == null || tileHighlightEventType == null ||
+                tileHighlightProperty == null ||
+                DropdownEnum<TileHighlightMode>(tileHighlightMode) != TileHighlightMode.Event)
+                return;
+
+            try
+            {
+                LevelEventType type = EventOperations.ParseEventType(tileHighlightEventType.SelectedValue);
+                tileHighlightProperty.SetOptions(TileHighlightOperations.PropertyOptions(type));
+                RefreshTileHighlightValueOptions();
+            }
+            catch (Exception ex)
+            {
+                tileHighlightProperty.SetOptions(new[]
+                {
+                    new KeyValuePair<string, string>(TileHighlightOperations.EventExistsProperty,
+                        "イベントが存在する")
+                });
+                SetStatus("強調条件の取得エラー: " + ex.Message);
+            }
+        }
+
+        private void RefreshTileHighlightValueOptions()
+        {
+            if (tileHighlightMode == null || tileHighlightComparison == null ||
+                tileHighlightValuePreset == null || tileHighlightProperty == null)
+                return;
+
+            TileHighlightMode mode = DropdownEnum<TileHighlightMode>(tileHighlightMode);
+            if (mode != TileHighlightMode.Event)
+            {
+                tileHighlightComparison.SetOptions(TileHighlightComparisonOptions(false, true));
+                tileHighlightValuePreset.SetOptions(new[]
+                {
+                    new KeyValuePair<string, string>(TileHighlightOperations.ManualValue, "値を手入力")
+                });
+                return;
+            }
+
+            bool eventExists = tileHighlightProperty.SelectedValue ==
+                               TileHighlightOperations.EventExistsProperty;
+            tileHighlightComparison.SetOptions(TileHighlightComparisonOptions(eventExists, false));
+            if (eventExists)
+            {
+                tileHighlightValuePreset.SetOptions(new[]
+                {
+                    new KeyValuePair<string, string>(TileHighlightOperations.ManualValue,
+                        "比較値は不要")
+                });
+                return;
+            }
+
+            try
+            {
+                LevelEventType type = EventOperations.ParseEventType(tileHighlightEventType.SelectedValue);
+                tileHighlightValuePreset.SetOptions(TileHighlightOperations.ValueOptions(editor, type,
+                    tileHighlightProperty.SelectedValue,
+                    tileHighlightDecorationsToggle != null && tileHighlightDecorationsToggle.isOn));
+            }
+            catch (Exception ex)
+            {
+                tileHighlightValuePreset.SetOptions(new[]
+                {
+                    new KeyValuePair<string, string>(TileHighlightOperations.ManualValue, "値を手入力")
+                });
+                SetStatus("候補値の取得エラー: " + ex.Message);
+            }
+        }
+
+        private void CopyTileHighlightPreset()
+        {
+            if (tileHighlightValuePreset == null || tileHighlightValue == null) return;
+            string value = tileHighlightValuePreset.SelectedValue;
+            if (!string.IsNullOrEmpty(value) && value != TileHighlightOperations.ManualValue)
+                tileHighlightValue.text = value;
+        }
+
+        private static IEnumerable<KeyValuePair<string, string>> TileHighlightComparisonOptions(
+            bool eventExistsOnly, bool numericOnly)
+        {
+            if (eventExistsOnly)
+            {
+                return new[]
+                {
+                    new KeyValuePair<string, string>(TileHighlightComparison.Exists.ToString(),
+                        "イベントが存在する")
+                };
+            }
+
+            List<KeyValuePair<string, string>> options = new List<KeyValuePair<string, string>>();
+            if (!numericOnly)
+            {
+                options.Add(new KeyValuePair<string, string>(TileHighlightComparison.Exists.ToString(),
+                    "項目が存在する"));
+            }
+            options.Add(new KeyValuePair<string, string>(TileHighlightComparison.Equals.ToString(), "等しい（＝）"));
+            options.Add(new KeyValuePair<string, string>(TileHighlightComparison.NotEquals.ToString(), "等しくない（≠）"));
+            if (!numericOnly)
+            {
+                options.Add(new KeyValuePair<string, string>(TileHighlightComparison.Contains.ToString(),
+                    "文字列を含む"));
+            }
+            options.Add(new KeyValuePair<string, string>(TileHighlightComparison.Greater.ToString(), "より大きい（＞）"));
+            options.Add(new KeyValuePair<string, string>(TileHighlightComparison.GreaterOrEqual.ToString(), "以上（≧）"));
+            options.Add(new KeyValuePair<string, string>(TileHighlightComparison.Less.ToString(), "より小さい（＜）"));
+            options.Add(new KeyValuePair<string, string>(TileHighlightComparison.LessOrEqual.ToString(), "以下（≦）"));
+            return options;
+        }
+
         private void RefreshOperationHistory()
         {
             if (operationHistoryText != null)
@@ -2157,7 +2364,8 @@ namespace Kiner.ADOFAIEditorQoL.UI
 
         private static bool DefaultSectionCollapsed(string title)
         {
-            return title == "イベント検索一覧" || title == "選択範囲プリセット" || title == "操作履歴";
+            return title == "イベント検索一覧" || title == "条件タイル強調" ||
+                   title == "選択範囲プリセット" || title == "操作履歴";
         }
 
         private Button CreateButton(Transform parent, string label, float width, float height)
