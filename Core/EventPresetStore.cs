@@ -75,7 +75,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
             }
             record.name = name;
             record.eventType = source.eventType.ToString();
-            record.eventJson = "{ " + source.Encode(false) + " }";
+            record.eventJson = GameVersionCompat.EncodeEventJson(source);
             Save();
             return "イベントプリセット「" + name + "」を保存しました。";
         }
@@ -104,7 +104,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
                         skipped++;
                         continue;
                     }
-                    if (overwriteSolo && EditorConstants.soloTypes.Contains(prototype.eventType))
+                    if (overwriteSolo && GameVersionCompat.IsSoloType(prototype.eventType))
                         editor.events.RemoveAll(x => x.floor == floor && x.eventType == prototype.eventType);
 
                     Dictionary<string, object> dict = DecodeEventDictionary(record.eventJson);
@@ -112,7 +112,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
                     copy.floor = floor;
                     if (copy.IsDecoration)
                     {
-                        if (copy.data.ContainsKey("relativeTo")) copy.data["relativeTo"] = DecPlacementType.Tile;
+                        if (copy.GetEventData().ContainsKey("relativeTo")) copy.GetEventData()["relativeTo"] = DecPlacementType.Tile;
                         editor.decorations.Add(copy);
                     }
                     else editor.events.Add(copy);

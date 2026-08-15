@@ -48,13 +48,13 @@ namespace Kiner.ADOFAIEditorQoL.Core
                         continue;
                     }
 
-                    if (overwriteSolo && EditorConstants.soloTypes.Contains(eventType))
+                    if (overwriteSolo && GameVersionCompat.IsSoloType(eventType))
                         editor.events.RemoveAll(x => x.floor == floor && x.eventType == eventType);
 
                     LevelEvent created = new LevelEvent(floor, eventType);
                     if (created.IsDecoration)
                     {
-                        if (created.data.ContainsKey("relativeTo")) created.data["relativeTo"] = DecPlacementType.Tile;
+                        if (created.GetEventData().ContainsKey("relativeTo")) created.GetEventData()["relativeTo"] = DecPlacementType.Tile;
                         editor.decorations.Add(created);
                     }
                     else editor.events.Add(created);
@@ -141,7 +141,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
                     {
                         LevelEvent copy = sourceDecoration.Copy();
                         copy.floor = floor;
-                        if (copy.data.ContainsKey("relativeTo")) copy.data["relativeTo"] = DecPlacementType.Tile;
+                        if (copy.GetEventData().ContainsKey("relativeTo")) copy.GetEventData()["relativeTo"] = DecPlacementType.Tile;
                         editor.decorations.Add(copy);
                         added++;
                     }
@@ -209,7 +209,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
         internal static bool CanPlace(scnEditor editor, LevelEventType type, int floor, bool overwriteSolo)
         {
             if (floor < 0 || floor >= editor.floors.Count) return false;
-            if (EditorConstants.soloTypes.Contains(type) && !overwriteSolo &&
+            if (GameVersionCompat.IsSoloType(type) && !overwriteSolo &&
                 editor.events.Any(x => x.floor == floor && x.eventType == type)) return false;
             if (type == LevelEventType.Hold && editor.events.Any(x => x.floor == floor && x.eventType == LevelEventType.Pause)) return false;
             if (type == LevelEventType.Pause && editor.events.Any(x => x.floor == floor && x.eventType == LevelEventType.Hold)) return false;

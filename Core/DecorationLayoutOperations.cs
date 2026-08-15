@@ -19,7 +19,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
                     Vector2 value = GetVector(item, "position");
                     if (xAxis) value.x = reference.x;
                     else value.y = reference.y;
-                    item.data["position"] = value;
+                    item.GetEventData()["position"] = value;
                 }
                 editor.UpdateDecorationObjects();
             }
@@ -44,7 +44,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
                     Vector2 value = GetVector(items[i], "position");
                     if (xAxis) value.x = Mathf.Lerp(start, end, t);
                     else value.y = Mathf.Lerp(start, end, t);
-                    items[i].data["position"] = value;
+                    items[i].GetEventData()["position"] = value;
                 }
                 editor.UpdateDecorationObjects();
             }
@@ -57,7 +57,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
             using (new EditorUndoScope(editor))
             {
                 foreach (LevelEvent item in items)
-                    item.data["position"] = GetVector(item, "position") + new Vector2(x, y);
+                    item.GetEventData()["position"] = GetVector(item, "position") + new Vector2(x, y);
                 editor.UpdateDecorationObjects();
             }
             return items.Count + "個の装飾を(" + x.ToString("0.######") + ", " + y.ToString("0.######") + ")移動しました。";
@@ -69,7 +69,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
             float value = GetFloat(items[0], "rotation");
             using (new EditorUndoScope(editor))
             {
-                for (int i = 1; i < items.Count; i++) items[i].data["rotation"] = value;
+                for (int i = 1; i < items.Count; i++) items[i].GetEventData()["rotation"] = value;
                 editor.UpdateDecorationObjects();
             }
             return items.Count + "個の装飾の回転を揃えました。";
@@ -81,7 +81,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
             Vector2 value = GetVector(items[0], "scale");
             using (new EditorUndoScope(editor))
             {
-                for (int i = 1; i < items.Count; i++) items[i].data["scale"] = value;
+                for (int i = 1; i < items.Count; i++) items[i].GetEventData()["scale"] = value;
                 editor.UpdateDecorationObjects();
             }
             return items.Count + "個の装飾の拡大率を揃えました。";
@@ -98,7 +98,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
                 using (new EditorUndoScope(editor))
                 {
                     for (int i = 0; i < items.Count; i++)
-                        items[i].data[property] = Vector2.Lerp(start, end, Fraction(i, items.Count));
+                        items[i].GetEventData()[property] = Vector2.Lerp(start, end, Fraction(i, items.Count));
                     editor.UpdateDecorationObjects();
                 }
             }
@@ -109,7 +109,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
                 using (new EditorUndoScope(editor))
                 {
                     for (int i = 0; i < items.Count; i++)
-                        items[i].data[property] = Mathf.Lerp(start, end, Fraction(i, items.Count));
+                        items[i].GetEventData()[property] = Mathf.Lerp(start, end, Fraction(i, items.Count));
                     editor.UpdateDecorationObjects();
                 }
             }
@@ -137,7 +137,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
         private static Vector2 GetVector(LevelEvent item, string key)
         {
             object value;
-            if (!item.data.TryGetValue(key, out value) || !(value is Vector2))
+            if (!item.GetEventData().TryGetValue(key, out value) || !(value is Vector2))
                 throw new InvalidOperationException(JapaneseLocalization.EventLabel(item.eventType.ToString()) +
                     "に" + JapaneseLocalization.PropertyLabel(key) + "がありません。");
             return (Vector2)value;
@@ -146,7 +146,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
         private static float GetFloat(LevelEvent item, string key)
         {
             object value;
-            if (!item.data.TryGetValue(key, out value))
+            if (!item.GetEventData().TryGetValue(key, out value))
                 throw new InvalidOperationException(JapaneseLocalization.EventLabel(item.eventType.ToString()) +
                     "に" + JapaneseLocalization.PropertyLabel(key) + "がありません。");
             try { return Convert.ToSingle(value); }

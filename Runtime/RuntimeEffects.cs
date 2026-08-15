@@ -1,4 +1,5 @@
 using UnityEngine;
+using Kiner.ADOFAIEditorQoL.Core;
 
 namespace Kiner.ADOFAIEditorQoL.Runtime
 {
@@ -6,9 +7,9 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
     {
         internal static void Cleanup()
         {
+            TileHighlightOperations.Clear();
             DestroyRuntimeComponents<TextMaskRuntime>();
             DestroyRuntimeComponents<TutorialBackgroundRuntime>();
-            DestroyRuntimeComponents<MultiTilePlanetRuntime>();
             DestroyRuntimeComponents<MultiTileDecorationRuntime>();
             DestroyRuntimeComponents<CustomTextFontRuntime>();
             CustomTextFontRuntime.ClearCachedFonts();
@@ -18,7 +19,8 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
         internal static void CleanupPlaybackEffects()
         {
             DestroyRuntimeComponents<TutorialBackgroundRuntime>();
-            DestroyRuntimeComponents<MultiTilePlanetRuntime>();
+            if (scrDecorationManager.instance != null)
+                scrDecorationManager.instance.ResetDecorations();
         }
 
         internal static void ReactivateCurrentScene()
@@ -43,11 +45,6 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
                 TutorialBackgroundRuntime runtime = game.GetComponent<TutorialBackgroundRuntime>();
                 if (runtime == null) runtime = game.gameObject.AddComponent<TutorialBackgroundRuntime>();
                 runtime.Configure(game);
-
-                MultiTilePlanetRuntime planetRuntime = game.GetComponent<MultiTilePlanetRuntime>();
-                if (planetRuntime == null)
-                    planetRuntime = game.gameObject.AddComponent<MultiTilePlanetRuntime>();
-                planetRuntime.Configure(game);
             }
 
             MultiTileDecorationRuntime.AttachAllInCurrentScenes();

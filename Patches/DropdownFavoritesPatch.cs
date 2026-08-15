@@ -9,11 +9,11 @@ namespace Kiner.ADOFAIEditorQoL.Patches
         private static void Prefix(TweakableDropdown __instance, out string __state)
         {
             __state = __instance.selectedItem == null ? null : __instance.selectedItem.value;
-            DropdownFavorites.Apply(__instance);
         }
 
         private static void Postfix(TweakableDropdown __instance, string __state)
         {
+            DropdownFavorites.ApplyVisualOrder(__instance);
             if (string.IsNullOrEmpty(__state) || __instance.items == null) return;
             TweakableDropdownItem match = __instance.items.Find(x => x != null && x.value == __state);
             if (match == null) return;

@@ -59,12 +59,12 @@ namespace Kiner.ADOFAIEditorQoL.Core
 
         private static string Describe(LevelEvent item)
         {
-            if (item.data == null) return string.Empty;
+            if (item.GetEventData() == null) return string.Empty;
             string[] keys = { "comment", "tag", "beatsPerMinute", "bpmMultiplier", "duration", "angleOffset" };
             foreach (string key in keys)
             {
                 object value;
-                if (!item.data.TryGetValue(key, out value) || value == null) continue;
+                if (!item.GetEventData().TryGetValue(key, out value) || value == null) continue;
                 string text = value.ToString().Replace('\r', ' ').Replace('\n', ' ').Trim();
                 if (text.Length > 28) text = text.Substring(0, 28) + "…";
                 if (text.Length > 0) return " — " + text;

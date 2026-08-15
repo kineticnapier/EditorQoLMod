@@ -70,7 +70,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
         {
             if (decoration == null || decoration.floor == null || decoration.sourceLevelEvent == null) return;
             object raw;
-            if (!decoration.sourceLevelEvent.data.TryGetValue("tag", out raw) || raw == null) return;
+            if (!decoration.sourceLevelEvent.GetEventData().TryGetValue("tag", out raw) || raw == null) return;
 
             string[] tags = Convert.ToString(raw).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             foreach (string tag in tags)
@@ -152,7 +152,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
         private static bool IsFloorObject(LevelEvent evnt)
         {
             object value;
-            if (!evnt.data.TryGetValue("objectType", out value) || value == null) return false;
+            if (!evnt.GetEventData().TryGetValue("objectType", out value) || value == null) return false;
             if (value is ObjectDecorationType) return (ObjectDecorationType)value == ObjectDecorationType.Floor;
             ObjectDecorationType parsed;
             return Enum.TryParse(Convert.ToString(value), true, out parsed) && parsed == ObjectDecorationType.Floor;
@@ -160,20 +160,20 @@ namespace Kiner.ADOFAIEditorQoL.Core
 
         private static void AppendTag(LevelEvent decoration, string tag)
         {
-            string old = decoration.data.ContainsKey("tag") ? Convert.ToString(decoration.data["tag"]) : string.Empty;
+            string old = decoration.GetEventData().ContainsKey("tag") ? Convert.ToString(decoration.GetEventData()["tag"]) : string.Empty;
             string[] tags = (old ?? string.Empty).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            if (!tags.Contains(tag)) decoration.data["tag"] = string.Join(" ", tags.Concat(new[] { tag }).ToArray());
+            if (!tags.Contains(tag)) decoration.GetEventData()["tag"] = string.Join(" ", tags.Concat(new[] { tag }).ToArray());
             if (decoration.disabled.ContainsKey("tag")) decoration.disabled["tag"] = false;
         }
 
         private static void SetPhaseTag(LevelEvent decoration, float seconds)
         {
-            string old = decoration.data.ContainsKey("tag") ? Convert.ToString(decoration.data["tag"]) : string.Empty;
+            string old = decoration.GetEventData().ContainsKey("tag") ? Convert.ToString(decoration.GetEventData()["tag"]) : string.Empty;
             List<string> tags = (old ?? string.Empty).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
                 .Where(x => !x.StartsWith(PhaseTagPrefix, StringComparison.Ordinal)).ToList();
             int milliseconds = Mathf.Max(0, Mathf.RoundToInt(seconds * 1000f));
             tags.Add(PhaseTagPrefix + milliseconds.ToString(CultureInfo.InvariantCulture));
-            decoration.data["tag"] = string.Join(" ", tags.ToArray());
+            decoration.GetEventData()["tag"] = string.Join(" ", tags.ToArray());
             if (decoration.disabled.ContainsKey("tag")) decoration.disabled["tag"] = false;
         }
 
@@ -199,7 +199,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
 
         private static void SetEnabled(LevelEvent evnt, string key, object value)
         {
-            evnt.data[key] = value;
+            evnt.GetEventData()[key] = value;
             if (evnt.disabled.ContainsKey(key)) evnt.disabled[key] = false;
         }
     }

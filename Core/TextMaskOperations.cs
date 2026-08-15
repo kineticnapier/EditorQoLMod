@@ -86,7 +86,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
 
         private static void SetEnabled(LevelEvent evnt, string key, object value)
         {
-            evnt.data[key] = value;
+            evnt.GetEventData()[key] = value;
             if (evnt.disabled.ContainsKey(key)) evnt.disabled[key] = false;
         }
     }

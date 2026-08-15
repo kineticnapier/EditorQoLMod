@@ -47,8 +47,8 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
         private void ApplyStoredPosition()
         {
             object raw;
-            if (source == null || source.data == null ||
-                !source.data.TryGetValue("position", out raw) || !(raw is Vector2)) return;
+            if (source == null || source.GetEventData() == null ||
+                !source.GetEventData().TryGetValue("position", out raw) || !(raw is Vector2)) return;
 
             Vector2 stored = (Vector2)raw;
             float tileSize = 1f;
@@ -106,10 +106,10 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
 
         private static bool IsFloorObject(LevelEvent evnt)
         {
-            if (evnt == null || evnt.eventType != LevelEventType.AddObject || evnt.data == null)
+            if (evnt == null || evnt.eventType != LevelEventType.AddObject || evnt.GetEventData() == null)
                 return false;
             object raw;
-            if (!evnt.data.TryGetValue("objectType", out raw) || raw == null) return false;
+            if (!evnt.GetEventData().TryGetValue("objectType", out raw) || raw == null) return false;
             if (raw is ObjectDecorationType)
                 return (ObjectDecorationType)raw == ObjectDecorationType.Floor;
             return string.Equals(Convert.ToString(raw), "Floor",

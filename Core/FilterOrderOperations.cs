@@ -53,7 +53,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
         private static string Describe(LevelEvent evnt)
         {
             object filter;
-            string name = evnt.data.TryGetValue("filter", out filter) ? Convert.ToString(filter) : "不明";
+            string name = evnt.GetEventData().TryGetValue("filter", out filter) ? Convert.ToString(filter) : "不明";
             return evnt.eventType + " - " + name;
         }
     }

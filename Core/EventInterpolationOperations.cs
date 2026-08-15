@@ -12,7 +12,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
         public static List<string> GetPropertyNames(LevelEventType eventType)
         {
             LevelEvent sample = new LevelEvent(0, eventType);
-            return sample.data.Keys.Where(key => key != "floor" && IsSupported(sample, key))
+            return sample.GetEventData().Keys.Where(key => key != "floor" && IsSupported(sample, key))
                 .OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
         }
 
@@ -32,15 +32,15 @@ namespace Kiner.ADOFAIEditorQoL.Core
             if (!IsSupported(matches[0], property)) throw new InvalidOperationException("この項目は補間に対応していません。");
 
             PropertyInfo info = matches[0].info.propertiesInfo[property];
-            object start = ParseValue(info, matches[0].data[property], startText);
-            object end = ParseValue(info, matches[0].data[property], endText);
+            object start = ParseValue(info, matches[0].GetEventData()[property], startText);
+            object end = ParseValue(info, matches[0].GetEventData()[property], endText);
 
             using (new EditorUndoScope(editor))
             {
                 for (int i = 0; i < matches.Count; i++)
                 {
                     float t = matches.Count <= 1 ? 0f : (float)i / (matches.Count - 1);
-                    matches[i].data[property] = ValidateValue(info, LerpValue(info, start, end, t));
+                    matches[i].GetEventData()[property] = ValidateValue(info, LerpValue(info, start, end, t));
                     if (matches[i].disabled.ContainsKey(property)) matches[i].disabled[property] = false;
                 }
                 if (info.affectsFloors) editor.ApplyEventsToFloors();
@@ -56,7 +56,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
         {
             PropertyInfo info;
             object value;
-            if (!evnt.info.propertiesInfo.TryGetValue(property, out info) || !evnt.data.TryGetValue(property, out value)) return false;
+            if (!evnt.info.propertiesInfo.TryGetValue(property, out info) || !evnt.GetEventData().TryGetValue(property, out value)) return false;
             if (value == null) return false;
             if (info.type == PropertyType.Vector2 && value is Vector2) return true;
             if (info.type == PropertyType.Color && value is string) return true;

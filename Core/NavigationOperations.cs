@@ -124,10 +124,10 @@ namespace Kiner.ADOFAIEditorQoL.Core
         private static string NearbyComment(scnEditor editor, int floor)
         {
             LevelEvent comment = editor.events.Where(x => x.eventType == LevelEventType.EditorComment &&
-                x.data.ContainsKey("comment") && x.data["comment"] is string)
+                x.GetEventData().ContainsKey("comment") && x.GetEventData()["comment"] is string)
                 .OrderBy(x => Math.Abs(x.floor - floor)).ThenBy(x => x.floor).FirstOrDefault();
             if (comment == null || Math.Abs(comment.floor - floor) > 5) return string.Empty;
-            return (string)comment.data["comment"];
+            return (string)comment.GetEventData()["comment"];
         }
 
         private static string OneLine(string text)

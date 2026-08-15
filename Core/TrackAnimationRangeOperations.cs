@@ -93,20 +93,20 @@ namespace Kiner.ADOFAIEditorQoL.Core
         private static void ReadIfPresent(LevelEvent evnt, string key, Action<object> assign)
         {
             object value;
-            if (evnt.data.TryGetValue(key, out value)) assign(value);
+            if (evnt.GetEventData().TryGetValue(key, out value)) assign(value);
         }
 
         private static void ReadIfEnabled(LevelEvent evnt, string key, Action<object> assign)
         {
             object value;
             bool disabled;
-            if (evnt.data.TryGetValue(key, out value) &&
+            if (evnt.GetEventData().TryGetValue(key, out value) &&
                 (!evnt.disabled.TryGetValue(key, out disabled) || !disabled)) assign(value);
         }
 
         private static void SetEnabled(LevelEvent evnt, string key, object value)
         {
-            evnt.data[key] = value;
+            evnt.GetEventData()[key] = value;
             if (evnt.disabled.ContainsKey(key)) evnt.disabled[key] = false;
         }
     }
