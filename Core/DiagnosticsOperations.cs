@@ -21,7 +21,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
                 else if (evnt.floor == 0 && evnt.info != null && !evnt.info.allowFirstFloorCheck)
                     issues.Add("先頭床に配置不可: " + Label(evnt));
 
-                foreach (KeyValuePair<string, object> pair in evnt.data)
+                foreach (KeyValuePair<string, object> pair in evnt.GetEventData())
                 {
                     if (!(pair.Value is Tuple<int, TileRelativeTo>)) continue;
                     Tuple<int, TileRelativeTo> tile = (Tuple<int, TileRelativeTo>)pair.Value;

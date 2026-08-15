@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using ADOFAI;
 using HarmonyLib;
@@ -25,10 +26,14 @@ namespace Kiner.ADOFAIEditorQoL.Core
         private static readonly MethodInfo EncodeEventMethod =
             AccessTools.Method(typeof(LevelEvent), "Encode", new[] { typeof(bool) });
 
+        private static readonly AccessTools.FieldRef<LevelEvent, Dictionary<string, object>>
+            EventDataRef = AccessTools.FieldRefAccess<LevelEvent, Dictionary<string, object>>(
+                "data");
+
         private static readonly FieldInfo CameraInstanceField =
             AccessTools.Field(typeof(scrCamera), "instance");
 
-        private static readonly PropertyInfo CameraInstanceProperty =
+        private static readonly System.Reflection.PropertyInfo CameraInstanceProperty =
             typeof(scrCamera).GetProperty("instance", StaticMembers);
 
         internal static bool IsSoloType(LevelEventType type)
@@ -39,6 +44,16 @@ namespace Kiner.ADOFAIEditorQoL.Core
         internal static bool IsSettingsType(LevelEventType type)
         {
             return StaticCollectionContains(SettingsTypesField, type);
+        }
+
+        internal static IDictionary<string, object> GetEventData(this LevelEvent source)
+        {
+            if (source == null)
+            {
+                throw new ArgumentNullException("source");
+            }
+
+            return EventDataRef(source);
         }
 
         internal static string EncodeEventJson(LevelEvent source)

@@ -54,7 +54,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
                     LevelEvent created = new LevelEvent(floor, eventType);
                     if (created.IsDecoration)
                     {
-                        if (created.data.ContainsKey("relativeTo")) created.data["relativeTo"] = DecPlacementType.Tile;
+                        if (created.GetEventData().ContainsKey("relativeTo")) created.GetEventData()["relativeTo"] = DecPlacementType.Tile;
                         editor.decorations.Add(created);
                     }
                     else editor.events.Add(created);
@@ -141,7 +141,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
                     {
                         LevelEvent copy = sourceDecoration.Copy();
                         copy.floor = floor;
-                        if (copy.data.ContainsKey("relativeTo")) copy.data["relativeTo"] = DecPlacementType.Tile;
+                        if (copy.GetEventData().ContainsKey("relativeTo")) copy.GetEventData()["relativeTo"] = DecPlacementType.Tile;
                         editor.decorations.Add(copy);
                         added++;
                     }

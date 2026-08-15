@@ -11,7 +11,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
         public static List<string> GetNumericPropertyNames(LevelEventType eventType)
         {
             LevelEvent sample = new LevelEvent(0, eventType);
-            return sample.data
+            return sample.GetEventData()
                 .Where(x => !string.Equals(x.Key, "floor", StringComparison.OrdinalIgnoreCase) &&
                             IsNumericValue(x.Value))
                 .Select(x => x.Key)
@@ -51,7 +51,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
             {
                 LevelEvent evnt = matches[i];
                 object current;
-                if (!evnt.data.TryGetValue(property, out current))
+                if (!evnt.GetEventData().TryGetValue(property, out current))
                     throw new KeyNotFoundException(JapaneseLocalization.EventLabel(eventType.ToString()) + "に項目「" + property + "」はありません。");
                 double currentNumber;
                 if (!TryToDouble(current, out currentNumber))
@@ -67,7 +67,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
             {
                 foreach (Tuple<LevelEvent, object> change in changes)
                 {
-                    change.Item1.data[property] = change.Item2;
+                    change.Item1.GetEventData()[property] = change.Item2;
                     if (change.Item1.disabled.ContainsKey(property)) change.Item1.disabled[property] = false;
                 }
                 editor.ApplyEventsToFloors();

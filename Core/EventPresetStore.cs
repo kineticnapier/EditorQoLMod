@@ -112,7 +112,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
                     copy.floor = floor;
                     if (copy.IsDecoration)
                     {
-                        if (copy.data.ContainsKey("relativeTo")) copy.data["relativeTo"] = DecPlacementType.Tile;
+                        if (copy.GetEventData().ContainsKey("relativeTo")) copy.GetEventData()["relativeTo"] = DecPlacementType.Tile;
                         editor.decorations.Add(copy);
                     }
                     else editor.events.Add(copy);

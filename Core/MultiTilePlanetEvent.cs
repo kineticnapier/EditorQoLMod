@@ -33,7 +33,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
                              ";planet=" + planetGroup +
                              ";end=" + endFloor.ToString(CultureInfo.InvariantCulture) +
                              ";count=" + tileCount.ToString(CultureInfo.InvariantCulture);
-            marker.data["comment"] = comment;
+            marker.GetEventData()["comment"] = comment;
             if (marker.disabled.ContainsKey("comment")) marker.disabled["comment"] = false;
             return marker;
         }
@@ -44,7 +44,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
             if (evnt == null || evnt.eventType != LevelEventType.EditorComment) return false;
 
             object raw;
-            if (!evnt.data.TryGetValue("comment", out raw) || raw == null) return false;
+            if (!evnt.GetEventData().TryGetValue("comment", out raw) || raw == null) return false;
             string text = Convert.ToString(raw);
             if (string.IsNullOrEmpty(text) ||
                 !text.StartsWith(Marker, StringComparison.Ordinal)) return false;

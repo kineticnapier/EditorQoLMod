@@ -15,9 +15,9 @@ namespace Kiner.ADOFAIEditorQoL.Core
 
         internal static string[] GetTags(LevelEvent decoration)
         {
-            if (decoration == null || decoration.data == null) return new string[0];
+            if (decoration == null || decoration.GetEventData() == null) return new string[0];
             object raw;
-            if (!decoration.data.TryGetValue("tag", out raw) || raw == null) return new string[0];
+            if (!decoration.GetEventData().TryGetValue("tag", out raw) || raw == null) return new string[0];
             return Convert.ToString(raw).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
         }
 
@@ -82,7 +82,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
             if (decoration == null) return;
             string value = string.Join(" ", (tags ?? Enumerable.Empty<string>())
                 .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToArray());
-            decoration.data["tag"] = value;
+            decoration.GetEventData()["tag"] = value;
             if (decoration.disabled.ContainsKey("tag")) decoration.disabled["tag"] = false;
         }
     }

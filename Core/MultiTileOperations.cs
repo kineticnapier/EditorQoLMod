@@ -470,7 +470,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
             else if (multiPlanetEvent != null)
             {
                 object planets;
-                string value = multiPlanetEvent.data.TryGetValue("planets", out planets)
+                string value = multiPlanetEvent.GetEventData().TryGetValue("planets", out planets)
                     ? Convert.ToString(planets)
                     : string.Empty;
                 icon = string.Equals(value, "TwoPlanets", StringComparison.OrdinalIgnoreCase)
@@ -516,13 +516,13 @@ namespace Kiner.ADOFAIEditorQoL.Core
         private static float GetSpeedRatio(scnEditor editor, int floorNumber, LevelEvent speedEvent)
         {
             object speedType;
-            string type = speedEvent.data.TryGetValue("speedType", out speedType)
+            string type = speedEvent.GetEventData().TryGetValue("speedType", out speedType)
                 ? Convert.ToString(speedType)
                 : string.Empty;
             if (string.Equals(type, "Multiplier", StringComparison.OrdinalIgnoreCase))
             {
                 object multiplier;
-                if (speedEvent.data.TryGetValue("bpmMultiplier", out multiplier) && multiplier != null)
+                if (speedEvent.GetEventData().TryGetValue("bpmMultiplier", out multiplier) && multiplier != null)
                 {
                     try { return Convert.ToSingle(multiplier, CultureInfo.InvariantCulture); }
                     catch { return 1f; }
@@ -559,7 +559,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
         private static bool IsObjectType(LevelEvent decoration, ObjectDecorationType expected)
         {
             object value;
-            if (!decoration.data.TryGetValue("objectType", out value) || value == null) return false;
+            if (!decoration.GetEventData().TryGetValue("objectType", out value) || value == null) return false;
             if (value is ObjectDecorationType) return (ObjectDecorationType)value == expected;
             ObjectDecorationType parsed;
             return Enum.TryParse(Convert.ToString(value), true, out parsed) && parsed == expected;
@@ -568,7 +568,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
         private static bool IsObjectTypeName(LevelEvent decoration, string expected)
         {
             object value;
-            if (!decoration.data.TryGetValue("objectType", out value) || value == null) return false;
+            if (!decoration.GetEventData().TryGetValue("objectType", out value) || value == null) return false;
             return string.Equals(Convert.ToString(value), expected,
                 StringComparison.OrdinalIgnoreCase);
         }
@@ -576,14 +576,14 @@ namespace Kiner.ADOFAIEditorQoL.Core
         private static string[] Tags(LevelEvent decoration)
         {
             object value;
-            if (!decoration.data.TryGetValue("tag", out value) || value == null) return new string[0];
+            if (!decoration.GetEventData().TryGetValue("tag", out value) || value == null) return new string[0];
             return Convert.ToString(value).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
         }
 
         private static float GetFloat(LevelEvent decoration, string key)
         {
             object value;
-            if (!decoration.data.TryGetValue(key, out value) || value == null)
+            if (!decoration.GetEventData().TryGetValue(key, out value) || value == null)
                 throw new InvalidOperationException("床デコレーションに" + key + "がありません。");
             try { return Convert.ToSingle(value, CultureInfo.InvariantCulture); }
             catch { throw new InvalidOperationException("床デコレーションの" + key + "が数値ではありません。"); }
@@ -592,7 +592,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
         private static void SetEnumText(LevelEvent decoration, string key, string value)
         {
             object current;
-            if (decoration.data.TryGetValue(key, out current) && current != null && current.GetType().IsEnum)
+            if (decoration.GetEventData().TryGetValue(key, out current) && current != null && current.GetType().IsEnum)
             {
                 object parsed;
                 try { parsed = Enum.Parse(current.GetType(), value, true); }
@@ -605,7 +605,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
 
         private static void SetEnabled(LevelEvent decoration, string key, object value)
         {
-            decoration.data[key] = value;
+            decoration.GetEventData()[key] = value;
             if (decoration.disabled.ContainsKey(key)) decoration.disabled[key] = false;
         }
 

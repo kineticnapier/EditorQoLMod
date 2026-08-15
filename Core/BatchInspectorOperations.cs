@@ -39,13 +39,13 @@ namespace Kiner.ADOFAIEditorQoL.Core
         {
             LevelEvent fake = new LevelEvent(-1, matches[0].eventType) { isFake = true };
             foreach (LevelEvent item in matches) fake.realEvents.Add(item);
-            fake.data.Remove("floor");
+            fake.GetEventData().Remove("floor");
             fake.disabled.Remove("floor");
 
-            foreach (string key in fake.data.Keys.ToList())
+            foreach (string key in fake.GetEventData().Keys.ToList())
             {
                 object first;
-                if (!matches[0].data.TryGetValue(key, out first) || matches.Any(x => !x.data.ContainsKey(key)))
+                if (!matches[0].GetEventData().TryGetValue(key, out first) || matches.Any(x => !x.GetEventData().ContainsKey(key)))
                 {
                     fake.disabled[key] = true;
                     continue;
@@ -54,18 +54,18 @@ namespace Kiner.ADOFAIEditorQoL.Core
                 if (fake.info.propertiesInfo[key].type == PropertyType.Vector2 && first is Vector2)
                 {
                     Vector2 firstVector = (Vector2)first;
-                    bool sameX = matches.All(x => x.data[key] is Vector2 &&
-                        Mathf.Abs(((Vector2)x.data[key]).x - firstVector.x) < 0.0001f);
-                    bool sameY = matches.All(x => x.data[key] is Vector2 &&
-                        Mathf.Abs(((Vector2)x.data[key]).y - firstVector.y) < 0.0001f);
-                    fake.data[key] = new Vector2(sameX ? firstVector.x : float.NaN,
+                    bool sameX = matches.All(x => x.GetEventData()[key] is Vector2 &&
+                        Mathf.Abs(((Vector2)x.GetEventData()[key]).x - firstVector.x) < 0.0001f);
+                    bool sameY = matches.All(x => x.GetEventData()[key] is Vector2 &&
+                        Mathf.Abs(((Vector2)x.GetEventData()[key]).y - firstVector.y) < 0.0001f);
+                    fake.GetEventData()[key] = new Vector2(sameX ? firstVector.x : float.NaN,
                         sameY ? firstVector.y : float.NaN);
                     fake.disabled[key] = !allEnabled || (!sameX && !sameY);
                 }
                 else
                 {
-                    bool same = matches.All(x => ValuesEqual(first, x.data[key]));
-                    fake.data[key] = first;
+                    bool same = matches.All(x => ValuesEqual(first, x.GetEventData()[key]));
+                    fake.GetEventData()[key] = first;
                     fake.disabled[key] = !allEnabled || !same;
                 }
             }

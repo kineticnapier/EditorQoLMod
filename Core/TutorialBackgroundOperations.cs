@@ -100,7 +100,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
             command = null;
             if (evnt == null || evnt.eventType != LevelEventType.EditorComment) return false;
             object raw;
-            if (!evnt.data.TryGetValue("comment", out raw) || raw == null) return false;
+            if (!evnt.GetEventData().TryGetValue("comment", out raw) || raw == null) return false;
             string text = Convert.ToString(raw);
             if (string.IsNullOrEmpty(text) || !text.StartsWith(Marker, StringComparison.Ordinal)) return false;
 
@@ -183,7 +183,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
 
         private static void SetEnabled(LevelEvent evnt, string key, object value)
         {
-            evnt.data[key] = value;
+            evnt.GetEventData()[key] = value;
             if (evnt.disabled.ContainsKey(key)) evnt.disabled[key] = false;
         }
     }

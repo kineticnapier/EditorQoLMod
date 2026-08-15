@@ -998,7 +998,7 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
         {
             if (evnt == null) return fallback;
             object raw;
-            if (!evnt.data.TryGetValue(key, out raw) || raw == null) return fallback;
+            if (!evnt.GetEventData().TryGetValue(key, out raw) || raw == null) return fallback;
             try { return Convert.ToSingle(raw, CultureInfo.InvariantCulture); }
             catch { return fallback; }
         }
@@ -1007,7 +1007,7 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
         {
             if (evnt == null || evnt.eventType != LevelEventType.AddObject) return false;
             object raw;
-            if (!evnt.data.TryGetValue("objectType", out raw) || raw == null) return false;
+            if (!evnt.GetEventData().TryGetValue("objectType", out raw) || raw == null) return false;
             if (raw is ObjectDecorationType)
                 return (ObjectDecorationType)raw == ObjectDecorationType.Floor;
             return string.Equals(Convert.ToString(raw), "Floor",
@@ -1018,7 +1018,7 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
         {
             if (evnt == null) return new string[0];
             object raw;
-            if (!evnt.data.TryGetValue("tag", out raw) || raw == null) return new string[0];
+            if (!evnt.GetEventData().TryGetValue("tag", out raw) || raw == null) return new string[0];
             return Convert.ToString(raw).Split(new[] { ' ' },
                 StringSplitOptions.RemoveEmptyEntries);
         }
