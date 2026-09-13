@@ -76,6 +76,7 @@
     <Compile Include="Core\CustomFontOperations.cs" />
     <Compile Include="Core\TutorialBackgroundOperations.cs" />
     <Compile Include="Patches\EditorLifecyclePatch.cs" />
+    <Compile Include="Patches\LargeLevelPerformancePatch.cs" />
     <Compile Include="Patches\ColorWavePhasePatch.cs" />
     <Compile Include="Patches\DropdownFavoritesPatch.cs" />
     <Compile Include="Patches\TextDecorationRuntimePatch.cs" />
