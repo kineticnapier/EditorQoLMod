@@ -91,6 +91,8 @@ namespace Kiner.ADOFAIEditorQoL.Patches
         [ThreadStatic] internal static int DrawMultiPlanetCalls;
         [ThreadStatic] internal static int CachedMaxPlanets;
         [ThreadStatic] internal static bool HasCachedMaxPlanets;
+        [ThreadStatic] internal static bool FirstMultiPlanetForcePlaying;
+        [ThreadStatic] internal static bool HasFirstMultiPlanetForcePlaying;
 
         internal static void Enter()
         {
@@ -102,6 +104,8 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             DrawMultiPlanetCalls = 0;
             CachedMaxPlanets = 0;
             HasCachedMaxPlanets = false;
+            FirstMultiPlanetForcePlaying = false;
+            HasFirstMultiPlanetForcePlaying = false;
         }
 
         internal static void Exit()
@@ -115,6 +119,8 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             DrawMultiPlanetCalls = 0;
             CachedMaxPlanets = 0;
             HasCachedMaxPlanets = false;
+            FirstMultiPlanetForcePlaying = false;
+            HasFirstMultiPlanetForcePlaying = false;
         }
 
         internal static bool ShouldOptimize(scrLevelMaker levelMaker)
@@ -160,13 +166,22 @@ namespace Kiner.ADOFAIEditorQoL.Patches
     [HarmonyPatch(typeof(scrLevelMaker), "DrawMultiPlanet", new[] { typeof(bool) })]
     internal static class LargeLevelDuplicateDrawMultiPlanetPatch
     {
-        private static bool Prefix(scrLevelMaker __instance, ref int __result)
+        private static bool Prefix(scrLevelMaker __instance, bool forcePlaying, ref int __result)
         {
             if (!LargeLevelRemakeDedupState.ShouldOptimize(__instance)) return true;
 
             LargeLevelRemakeDedupState.DrawMultiPlanetCalls++;
+            if (LargeLevelRemakeDedupState.DrawMultiPlanetCalls == 1)
+            {
+                LargeLevelRemakeDedupState.FirstMultiPlanetForcePlaying = forcePlaying;
+                LargeLevelRemakeDedupState.HasFirstMultiPlanetForcePlaying = true;
+                return true;
+            }
+
             if (LargeLevelRemakeDedupState.DrawMultiPlanetCalls != 2 ||
-                !LargeLevelRemakeDedupState.HasCachedMaxPlanets)
+                !LargeLevelRemakeDedupState.HasCachedMaxPlanets ||
+                !LargeLevelRemakeDedupState.HasFirstMultiPlanetForcePlaying ||
+                LargeLevelRemakeDedupState.FirstMultiPlanetForcePlaying != forcePlaying)
             {
                 return true;
             }
