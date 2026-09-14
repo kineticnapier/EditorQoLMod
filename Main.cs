@@ -24,6 +24,7 @@ namespace Kiner.ADOFAIEditorQoL
             UI.EditorQoLWorkbenchIntegration.Initialize();
             harmony = new Harmony(modEntry.Info.Id);
             harmony.PatchAll();
+            Patches.LargeLevelHarmonyDiagnostics.EnsureExplicitBridge(harmony);
             modEntry.OnToggle = OnToggle;
             modEntry.OnUnload = OnUnload;
             Logger.Log("ADOFAI Editor QoL v" + ModVersion.Current + " loaded.");
