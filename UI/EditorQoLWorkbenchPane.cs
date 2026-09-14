@@ -193,8 +193,25 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 view.Text("最新計測: " + snapshot.FloorCount.ToString("N0", CultureInfo.InvariantCulture) + " タイル", 10f, true)
                     .Text(PerformanceLine("RemakePath 合計", snapshot.RemakePathMs, 1), 10f, false)
                     .Text(PerformanceLine("MakeLevel", snapshot.MakeLevelMs, snapshot.MakeLevelCalls), 10f, false)
-                    .Text(PerformanceLine("└ InstantiateFloatFloors", snapshot.InstantiateFloatFloorsMs, snapshot.InstantiateFloatFloorsCalls), 10f, false)
-                    .Text(PerformanceLine("ApplyEventsToFloors", snapshot.ApplyEventsToFloorsMs, snapshot.ApplyEventsToFloorsCalls), 10f, false)
+                    .Text(PerformanceLine("└ InstantiateFloatFloors", snapshot.InstantiateFloatFloorsMs, snapshot.InstantiateFloatFloorsCalls), 10f, false);
+
+                if (LargeLevelFloorCreationDiagnostics.LastFastPathUsed)
+                {
+                    view.Text("  高速床生成: 使用（開始時 " +
+                              LargeLevelFloorCreationDiagnostics.LastInitialFloorCount.ToString("N0", CultureInfo.InvariantCulture) + " 床）", 9f, true)
+                        .Text(PerformanceLine("  ├ Object.Instantiate<scrFloor>",
+                            LargeLevelFloorCreationDiagnostics.LastSpawnMs,
+                            LargeLevelFloorCreationDiagnostics.LastSpawnCalls), 9f, false)
+                        .Text(PerformanceLine("  └ scrFloor.Awake 累計",
+                            LargeLevelFloorCreationDiagnostics.LastAwakeMs,
+                            LargeLevelFloorCreationDiagnostics.LastAwakeCalls), 9f, false);
+                }
+                else
+                {
+                    view.Text("  高速床生成: 未使用", 9f, false);
+                }
+
+                view.Text(PerformanceLine("ApplyEventsToFloors", snapshot.ApplyEventsToFloorsMs, snapshot.ApplyEventsToFloorsCalls), 10f, false)
                     .Text(PerformanceLine("└ ApplyCoreEventsToFloors", snapshot.ApplyCoreEventsToFloorsMs, snapshot.ApplyCoreEventsToFloorsCalls), 10f, false)
                     .Text(PerformanceLine("└ CalculateFloorEntryTimes", snapshot.CalculateFloorEntryTimesMs, snapshot.CalculateFloorEntryTimesCalls), 10f, false)
                     .Text(PerformanceLine("DrawHolds", snapshot.DrawHoldsMs, snapshot.DrawHoldsCalls), 10f, false)
