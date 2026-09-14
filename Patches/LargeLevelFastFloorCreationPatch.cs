@@ -1,8 +1,79 @@
+using System.Diagnostics;
 using HarmonyLib;
 using UnityEngine;
 
 namespace Kiner.ADOFAIEditorQoL.Patches
 {
+    internal static class LargeLevelFloorCreationDiagnostics
+    {
+        private static bool measuring;
+        private static long spawnTicks;
+        private static long awakeTicks;
+
+        internal static bool LastFastPathUsed { get; private set; }
+        internal static int LastInitialFloorCount { get; private set; }
+        internal static int LastSpawnCalls { get; private set; }
+        internal static int LastAwakeCalls { get; private set; }
+
+        internal static double LastSpawnMs
+        {
+            get { return spawnTicks * 1000.0 / Stopwatch.Frequency; }
+        }
+
+        internal static double LastAwakeMs
+        {
+            get { return awakeTicks * 1000.0 / Stopwatch.Frequency; }
+        }
+
+        internal static void Prepare(int initialFloorCount)
+        {
+            measuring = false;
+            spawnTicks = 0L;
+            awakeTicks = 0L;
+            LastFastPathUsed = false;
+            LastInitialFloorCount = initialFloorCount;
+            LastSpawnCalls = 0;
+            LastAwakeCalls = 0;
+        }
+
+        internal static void BeginFastPath()
+        {
+            LastFastPathUsed = true;
+            measuring = true;
+        }
+
+        internal static void EndFastPath()
+        {
+            measuring = false;
+        }
+
+        internal static scrFloor Spawn(scrFloor prefab, Vector3 position, Transform parent)
+        {
+            long start = Stopwatch.GetTimestamp();
+            try
+            {
+                return Object.Instantiate(prefab, position, Quaternion.identity, parent);
+            }
+            finally
+            {
+                spawnTicks += Stopwatch.GetTimestamp() - start;
+                LastSpawnCalls++;
+            }
+        }
+
+        internal static long BeginAwake()
+        {
+            return measuring ? Stopwatch.GetTimestamp() : 0L;
+        }
+
+        internal static void EndAwake(long start)
+        {
+            if (start == 0L) return;
+            awakeTicks += Stopwatch.GetTimestamp() - start;
+            LastAwakeCalls++;
+        }
+    }
+
     // Large float-angle charts spend most of their initial RemakePath in InstantiateFloatFloors.
     // Keep the exact all-floor model, but avoid the per-floor GameObject -> parent -> GetComponent
     // sequence. Cloning the scrFloor component still clones the complete prefab GameObject while
@@ -25,7 +96,13 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             }
 
             int targetCount = __instance.floorAngles.Length + 1;
-            if (targetCount < LargeLevelRemakeDedupState.MinFloorCount || __instance.meshFloor == null)
+            if (targetCount < LargeLevelRemakeDedupState.MinFloorCount)
+            {
+                return true;
+            }
+
+            LargeLevelFloorCreationDiagnostics.Prepare(__instance.listFloors.Count);
+            if (__instance.meshFloor == null)
             {
                 return true;
             }
@@ -36,7 +113,15 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                 return true;
             }
 
-            FastInstantiateFloatFloors(__instance, floorPrefab, targetCount);
+            LargeLevelFloorCreationDiagnostics.BeginFastPath();
+            try
+            {
+                FastInstantiateFloatFloors(__instance, floorPrefab, targetCount);
+            }
+            finally
+            {
+                LargeLevelFloorCreationDiagnostics.EndFastPath();
+            }
             return false;
         }
 
@@ -100,7 +185,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             scrFloor currentFloor;
             if (levelMaker.listFloors.Count == 0)
             {
-                currentFloor = Object.Instantiate(floorPrefab, Vector3.zero, Quaternion.identity, floorContainer);
+                currentFloor = LargeLevelFloorCreationDiagnostics.Spawn(floorPrefab, Vector3.zero, floorContainer);
                 currentFloor.hasLit = true;
                 currentFloor.entryangle = 4.71238899230957;
                 currentFloor.name = "0/Floor 0";
@@ -118,7 +203,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
 
             bool directionFlag = true;
             Vector3 position = Vector3.zero;
-            double tileSize = scrController.instance.tileSize;
+            double tileSize = (double)scrController.instance.tileSize;
 
             for (int j = 0; j < levelMaker.floorAngles.Length; j++)
             {
@@ -126,7 +211,9 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                 double exitAngle;
                 if (floorAngle != 999f)
                 {
-                    exitAngle = (-(double)floorAngle + 90.0) * 0.017453292;
+                    // Preserve the game's float constant and promotion order to avoid cumulative
+                    // position drift across extremely long charts.
+                    exitAngle = (double)((-(double)floorAngle + 90f) * 0.017453292f);
                 }
                 else
                 {
@@ -146,7 +233,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                 {
                     // Instantiating the component clones its complete GameObject, but avoids an
                     // extra GetComponent<scrFloor>() and assigns the parent during Instantiate.
-                    nextFloor = Object.Instantiate(floorPrefab, position, Quaternion.identity, floorContainer);
+                    nextFloor = LargeLevelFloorCreationDiagnostics.Spawn(floorPrefab, position, floorContainer);
                     levelMaker.listFloors.Add(nextFloor);
                 }
 
@@ -190,6 +277,21 @@ namespace Kiner.ADOFAIEditorQoL.Patches
 
             floor.floorRenderer.material.CopyPropertiesFromMaterial(material);
             floor.Reset();
+        }
+    }
+
+    [HarmonyPatch(typeof(scrFloor), "Awake")]
+    internal static class LargeLevelFloorAwakeProfilePatch
+    {
+        private static void Prefix(out long __state)
+        {
+            __state = LargeLevelFloorCreationDiagnostics.BeginAwake();
+        }
+
+        private static System.Exception Finalizer(long __state, System.Exception __exception)
+        {
+            LargeLevelFloorCreationDiagnostics.EndAwake(__state);
+            return __exception;
         }
     }
 }
