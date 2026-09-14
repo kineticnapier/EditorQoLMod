@@ -1,0 +1,82 @@
+using System.Globalization;
+using HarmonyLib;
+using Kiner.ADOFAIEditorQoL.UI;
+using KineticNapier.ADOFAIWorkbench;
+
+namespace Kiner.ADOFAIEditorQoL.Patches
+{
+    [HarmonyPatch(typeof(EditorQoLWorkbenchPane), "BuildView")]
+    internal static class LargeLevelInteractionProfilerWorkbenchPatch
+    {
+        private static void Postfix(ref WorkbenchPaneView __result)
+        {
+            if (__result == null) return;
+
+            LargeLevelLatestInteractionTimings latest = LargeLevelInteractionProfiler.Latest;
+
+            __result.Spacer(8)
+                .Text("大規模譜面 操作プロファイラ", 12f, true)
+                .Text("編集 / Undo / Redo / Play の直近処理を分解します。", 9f, false)
+                .Text(FormatLine("SaveState", latest.SaveStateMs, 1), 10f, false)
+                .Text(FormatLine("└ LevelData.Copy", latest.LevelDataCopyMs,
+                    latest.LevelDataCopyCallsInSaveState), 9f, false)
+                .Text(FormatLine("RemakePath [events=" + latest.RemakeApplyEvents.ToString() +
+                                 ", remake=" + latest.RemakeLevel.ToString() + "]",
+                    latest.RemakePathMs, 1), 10f, false)
+                .Text(FormatLine("ReloadAssets [force=" + latest.ReloadAssetsForce.ToString() +
+                                 ", decs=" + latest.ReloadAssetsDecorations.ToString() + "]",
+                    latest.ReloadAssetsMs, 1), 10f, false);
+
+            AppendAction(__result, "Undo", LargeLevelInteractionProfiler.LatestUndo);
+            AppendAction(__result, "Redo", LargeLevelInteractionProfiler.LatestRedo);
+            AppendAction(__result, "Play", LargeLevelInteractionProfiler.LatestPlay);
+
+            __result.Text("※ 0.0 ms はまだ未計測の可能性があります。", 9f, false);
+        }
+
+        private static void AppendAction(WorkbenchPaneView view, string label, LargeLevelInteractionSnapshot snapshot)
+        {
+            if (snapshot == null)
+            {
+                view.Text(label + ": 未計測", 10f, false);
+                return;
+            }
+
+            view.Text(FormatLine(label + " 合計", snapshot.TotalMs, 1), 10f, true)
+                .Text(FormatLine("├ SaveState", snapshot.SaveStateMs, snapshot.SaveStateCalls), 9f, false)
+                .Text(FormatLine("├ LevelData.Copy", snapshot.LevelDataCopyMs, snapshot.LevelDataCopyCalls), 9f, false)
+                .Text(FormatLine("├ RemakePath", snapshot.RemakePathMs, snapshot.RemakePathCalls), 9f, false)
+                .Text(FormatLine("└ ReloadAssets", snapshot.ReloadAssetsMs, snapshot.ReloadAssetsCalls), 9f, false);
+        }
+
+        private static string FormatLine(string label, double milliseconds, int calls)
+        {
+            string time = milliseconds >= 1000.0
+                ? (milliseconds / 1000.0).ToString("0.000", CultureInfo.InvariantCulture) + " s"
+                : milliseconds.ToString("0.0", CultureInfo.InvariantCulture) + " ms";
+
+            if (calls > 1)
+            {
+                time += " / " + calls.ToString(CultureInfo.InvariantCulture) + " 回";
+            }
+            else if (calls == 0 && milliseconds == 0.0)
+            {
+                time += " / 0 回";
+            }
+
+            return label + ": " + time;
+        }
+    }
+
+    [HarmonyPatch(typeof(EditorQoLWorkbenchPane), "HandleAction")]
+    internal static class LargeLevelInteractionProfilerClearPatch
+    {
+        private static void Postfix(string actionId)
+        {
+            if (actionId == "clear-performance")
+            {
+                LargeLevelInteractionProfiler.Clear();
+            }
+        }
+    }
+}
