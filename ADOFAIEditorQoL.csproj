@@ -83,6 +83,7 @@
     <Compile Include="Patches\LargeLevelPerformancePatch.cs" />
     <Compile Include="Patches\LargeLevelFastFloorCreationPatch.cs" />
     <Compile Include="Patches\LargeLevelFloorAwakeOptimizationPatch.cs" />
+    <Compile Include="Patches\LargeLevelHarmonyDiagnosticsPatch.cs" />
     <Compile Include="Patches\ColorWavePhasePatch.cs" />
     <Compile Include="Patches\DropdownFavoritesPatch.cs" />
     <Compile Include="Patches\TextDecorationRuntimePatch.cs" />
