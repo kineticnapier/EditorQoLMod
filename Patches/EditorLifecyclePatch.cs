@@ -12,6 +12,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             if (Main.Enabled)
             {
                 UI.EditorQoLPanel.Attach(__instance);
+                UI.EditorQoLWorkbenchIntegration.SetEditor(__instance);
                 Runtime.MultiTileDecorationRuntime.AttachAllInCurrentScenes();
             }
         }

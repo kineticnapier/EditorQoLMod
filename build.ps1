@@ -19,6 +19,8 @@ param(
 
     [string]$GameManagedDir = $env:ADOFAI_GAME_MANAGED_DIR,
 
+    [string]$ADOFAIWorkbenchDir = $env:ADOFAI_WORKBENCH_DIR,
+
     [string]$MSBuildPath,
 
     [string]$DeployDir,
@@ -189,6 +191,7 @@ function Write-ModInfo {
         AssemblyName = "ADOFAIEditorQoL.dll"
         EntryMethod = "Kiner.ADOFAIEditorQoL.Main.Load"
         HomePage = "https://github.com/kineticnapier/EditorQoLMod"
+        Requirements = @("ADOFAIWorkbench-0.9.2")
     }
 
     $json = $modInfo | ConvertTo-Json
@@ -234,10 +237,42 @@ function Assert-GameReferences {
     }
 }
 
+function Resolve-WorkbenchDirectory {
+    param(
+        [string]$RequestedPath,
+        [string]$ManagedDirectory
+    )
+
+    $candidates = @()
+    if (-not [string]::IsNullOrWhiteSpace($RequestedPath)) {
+        $candidates += $RequestedPath
+    }
+    $candidates += @(
+        (Join-Path $PSScriptRoot "..\ADOFAIWorkbench\src\bin\Release"),
+        (Join-Path $ManagedDirectory "..\..\Mods\ADOFAIWorkbench")
+    )
+
+    foreach ($candidate in $candidates) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) {
+            continue
+        }
+        $assembly = Join-Path $candidate "ADOFAIWorkbench.dll"
+        if (Test-Path -LiteralPath $assembly -PathType Leaf) {
+            return (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+
+    throw @"
+ADOFAIWorkbench.dll was not found.
+Build/install ADOFAIWorkbench first, then pass -ADOFAIWorkbenchDir or set ADOFAI_WORKBENCH_DIR.
+"@
+}
+
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectPath = Resolve-ProjectPath -Root $scriptRoot
 $projectDirectory = Split-Path -Parent $projectPath
 $managedDirectory = Resolve-ManagedDirectory -RequestedPath $GameManagedDir
+$workbenchDirectory = Resolve-WorkbenchDirectory -RequestedPath $ADOFAIWorkbenchDir -ManagedDirectory $managedDirectory
 $resolvedMSBuild = Resolve-MSBuild -RequestedPath $MSBuildPath
 $version = Get-ModVersion -ProjectDirectory $projectDirectory
 
@@ -247,6 +282,7 @@ Update-GeneratedVersion -ProjectDirectory $projectDirectory -Version $version
 Write-Host "Building ADOFAIEditorQoL v$version ($Configuration)"
 Write-Host "Project : $projectPath"
 Write-Host "Managed : $managedDirectory"
+Write-Host "Workbench: $workbenchDirectory"
 Write-Host "MSBuild : $resolvedMSBuild"
 
 $msbuildArguments = @(
@@ -257,7 +293,8 @@ $msbuildArguments = @(
     "/verbosity:minimal",
     "/p:Configuration=$Configuration",
     "/p:Platform=AnyCPU",
-    "/p:GameManagedDir=$managedDirectory"
+    "/p:GameManagedDir=$managedDirectory",
+    "/p:ADOFAIWorkbenchDir=$workbenchDirectory"
 )
 
 & $resolvedMSBuild @msbuildArguments

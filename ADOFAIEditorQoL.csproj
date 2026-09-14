@@ -12,6 +12,9 @@
     <GameManagedDir Condition=" '$(GameManagedDir)' == '' and '$(ADOFAI_GAME_MANAGED_DIR)' != '' ">$(ADOFAI_GAME_MANAGED_DIR)</GameManagedDir>
     <GameManagedDir Condition=" '$(GameManagedDir)' == '' ">$(MSBuildProjectDirectory)\..\reference\Managed</GameManagedDir>
     <UmmDir Condition=" '$(UmmDir)' == '' ">$(GameManagedDir)\UnityModManager</UmmDir>
+    <ADOFAIWorkbenchDir Condition=" '$(ADOFAIWorkbenchDir)' == '' and '$(ADOFAI_WORKBENCH_DIR)' != '' ">$(ADOFAI_WORKBENCH_DIR)</ADOFAIWorkbenchDir>
+    <ADOFAIWorkbenchDir Condition=" '$(ADOFAIWorkbenchDir)' == '' and Exists('$(MSBuildProjectDirectory)\..\ADOFAIWorkbench\src\bin\Release\ADOFAIWorkbench.dll') ">$(MSBuildProjectDirectory)\..\ADOFAIWorkbench\src\bin\Release</ADOFAIWorkbenchDir>
+    <ADOFAIWorkbenchDir Condition=" '$(ADOFAIWorkbenchDir)' == '' ">$(GameManagedDir)\..\..\Mods\ADOFAIWorkbench</ADOFAIWorkbenchDir>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -40,6 +43,7 @@
     <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(GameManagedDir)\UnityEngine.InputLegacyModule.dll</HintPath><Private>False</Private></Reference>
     <Reference Include="UnityModManager"><HintPath>$(UmmDir)\UnityModManager.dll</HintPath><Private>False</Private></Reference>
     <Reference Include="0Harmony"><HintPath>$(UmmDir)\0Harmony.dll</HintPath><Private>False</Private></Reference>
+    <Reference Include="ADOFAIWorkbench"><HintPath>$(ADOFAIWorkbenchDir)\ADOFAIWorkbench.dll</HintPath><Private>False</Private></Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Main.cs" />
@@ -92,6 +96,7 @@
     <Compile Include="Runtime\TutorialBackgroundRuntime.cs" />
     <Compile Include="UI\NativeDropdown.cs" />
     <Compile Include="UI\EditorQoLPanel.cs" />
+    <Compile Include="UI\EditorQoLWorkbenchPane.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Properties\GeneratedVersion.cs" />
   </ItemGroup>
