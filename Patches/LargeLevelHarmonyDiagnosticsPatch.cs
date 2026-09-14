@@ -59,14 +59,14 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                 var target = AccessTools.Method(typeof(scrLevelMaker), "InstantiateFloatFloors");
                 if (target == null) return "target method が見つからない";
 
-                Patches info = Harmony.GetPatchInfo(target);
+                var info = Harmony.GetPatchInfo(target);
                 if (info == null) return "PatchInfo なし";
 
                 bool fastPrefixFound = false;
                 HashSet<string> owners = new HashSet<string>();
                 for (int i = 0; i < info.Prefixes.Count; i++)
                 {
-                    Patch patch = info.Prefixes[i];
+                    var patch = info.Prefixes[i];
                     if (!string.IsNullOrEmpty(patch.owner)) owners.Add(patch.owner);
 
                     var patchMethod = patch.PatchMethod;
