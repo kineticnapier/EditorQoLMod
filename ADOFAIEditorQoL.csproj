@@ -83,6 +83,7 @@
     <Compile Include="Patches\EditorLifecyclePatch.cs" />
     <Compile Include="Patches\LargeLevelPerformancePatch.cs" />
     <Compile Include="Patches\LargeLevelInteractionProfilerPatch.cs" />
+    <Compile Include="Patches\LargeLevelInteractionProfilerWorkbenchPatch.cs" />
     <Compile Include="Patches\LargeLevelFastFloorCreationPatch.cs" />
     <Compile Include="Patches\LargeLevelLazyEditorNumbersPatch.cs" />
     <Compile Include="Patches\LargeLevelLazyEditorNumberSpawnPatch.cs" />
