@@ -163,9 +163,9 @@ namespace Kiner.ADOFAIEditorQoL.Patches
         }
     }
 
-    // Route MakeLevel's float-floor creation through one bridge. The game's original method remains
-    // the fallback for small charts or when any safety condition is not met.
-    [HarmonyPatch(typeof(scrLevelMaker), "MakeLevel")]
+    // This experimental bridge is installed explicitly after PatchAll. Keeping the class free of
+    // HarmonyPatch attributes prevents PatchAll failures from taking down the entire mod; any
+    // bridge-install failure is caught and reported through ExplicitBridgeStatus instead.
     internal static class LargeLevelMakeLevelBridgePatch
     {
         private static readonly MethodInfo OriginalInstantiateFloatFloors =
