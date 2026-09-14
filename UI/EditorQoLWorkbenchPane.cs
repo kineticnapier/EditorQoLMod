@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using ADOFAI;
 using Kiner.ADOFAIEditorQoL.Core;
+using Kiner.ADOFAIEditorQoL.Patches;
 using KineticNapier.ADOFAIWorkbench;
 
 namespace Kiner.ADOFAIEditorQoL.UI
@@ -22,6 +23,12 @@ namespace Kiner.ADOFAIEditorQoL.UI
         internal static void SetEditor(scnEditor editor)
         {
             Provider.Pane.SetEditor(editor);
+        }
+
+        internal static void NotifyPerformanceProfileUpdated()
+        {
+            if (!registered) return;
+            Workbench.PublishPane(Provider.Pane.Id);
         }
 
         internal static void Shutdown()
@@ -47,6 +54,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
         private scnEditor editor;
         private bool anglesExpanded = true;
         private bool trackExpanded = true;
+        private bool performanceExpanded = true;
         private string multiplier = "0.5";
         private string snapIncrement = "0.01";
         private string trackAppear = FirstEnumValue(typeof(TrackAnimationType));
@@ -110,8 +118,11 @@ namespace Kiner.ADOFAIEditorQoL.UI
                         .Input(beatsBehind, "set-beats-behind")
                     .EndRow()
                     .Button("選択範囲にアニメーションを適用", "apply-track", string.Empty, false)
-                .EndSection()
-                .Spacer(6)
+                .EndSection();
+
+            AppendPerformanceProfile(view);
+
+            view.Spacer(6)
                 .Text(status, 10f, false);
             return view;
         }
@@ -124,6 +135,11 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 case "toggle-section":
                     if (argument == "angles") anglesExpanded = !anglesExpanded;
                     else if (argument == "track") trackExpanded = !trackExpanded;
+                    else if (argument == "performance") performanceExpanded = !performanceExpanded;
+                    Publish();
+                    return;
+                case "clear-performance":
+                    LargeLevelLoadProfiler.ClearLatest();
                     Publish();
                     return;
                 case "set-multiplier": multiplier = argument; Publish(); return;
@@ -160,6 +176,53 @@ namespace Kiner.ADOFAIEditorQoL.UI
                     });
                     return;
             }
+        }
+
+        private void AppendPerformanceProfile(WorkbenchPaneView view)
+        {
+            view.BeginSection("大規模譜面プロファイラ", "toggle-section", "performance", performanceExpanded);
+
+            LargeLevelPerformanceSnapshot snapshot = LargeLevelLoadProfiler.Latest;
+            if (snapshot == null)
+            {
+                view.Text("10,000タイル以上のフル RemakePath を待っています。", 10f, false)
+                    .Text("譜面を開き直すと自動で更新されます。", 9f, false);
+            }
+            else
+            {
+                view.Text("最新計測: " + snapshot.FloorCount.ToString("N0", CultureInfo.InvariantCulture) + " タイル", 10f, true)
+                    .Text(PerformanceLine("RemakePath 合計", snapshot.RemakePathMs, 1), 10f, false)
+                    .Text(PerformanceLine("MakeLevel", snapshot.MakeLevelMs, snapshot.MakeLevelCalls), 10f, false)
+                    .Text(PerformanceLine("└ InstantiateFloatFloors", snapshot.InstantiateFloatFloorsMs, snapshot.InstantiateFloatFloorsCalls), 10f, false)
+                    .Text(PerformanceLine("ApplyEventsToFloors", snapshot.ApplyEventsToFloorsMs, snapshot.ApplyEventsToFloorsCalls), 10f, false)
+                    .Text(PerformanceLine("└ ApplyCoreEventsToFloors", snapshot.ApplyCoreEventsToFloorsMs, snapshot.ApplyCoreEventsToFloorsCalls), 10f, false)
+                    .Text(PerformanceLine("└ CalculateFloorEntryTimes", snapshot.CalculateFloorEntryTimesMs, snapshot.CalculateFloorEntryTimesCalls), 10f, false)
+                    .Text(PerformanceLine("DrawHolds", snapshot.DrawHoldsMs, snapshot.DrawHoldsCalls), 10f, false)
+                    .Text(PerformanceLine("DrawMultiPlanet", snapshot.DrawMultiPlanetMs, snapshot.DrawMultiPlanetCalls), 10f, false)
+                    .Text("※ 内訳は包含関係があるため、単純加算しても合計にはなりません。", 9f, false);
+            }
+
+            view.Button("計測結果をクリア", "clear-performance", string.Empty, false)
+                .EndSection();
+        }
+
+        private static string PerformanceLine(string label, double milliseconds, int calls)
+        {
+            string time;
+            if (milliseconds >= 1000.0)
+            {
+                time = (milliseconds / 1000.0).ToString("0.000", CultureInfo.InvariantCulture) + " s";
+            }
+            else
+            {
+                time = milliseconds.ToString("0.0", CultureInfo.InvariantCulture) + " ms";
+            }
+
+            if (calls > 1)
+            {
+                time += " / " + calls.ToString(CultureInfo.InvariantCulture) + " 回";
+            }
+            return label + ": " + time;
         }
 
         private void Run(Func<string> action)
