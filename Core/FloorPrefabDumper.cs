@@ -3,12 +3,46 @@ using System.Collections;
 using System.IO;
 using System.Reflection;
 using System.Text;
+using HarmonyLib;
 using UnityEngine;
 
 namespace Kiner.ADOFAIEditorQoL.Core
 {
+    [HarmonyPatch(typeof(scnEditor), "RemakePath", new[] { typeof(bool), typeof(bool) })]
     internal static class FloorPrefabDumper
     {
+        private const int AutoDumpMinFloors = 10000;
+        private static bool autoDumpAttempted;
+
+        private static void Postfix(bool remakeLevel)
+        {
+            if (autoDumpAttempted || !Main.Enabled || !remakeLevel) return;
+
+            scrLevelMaker levelMaker = scrLevelMaker.instance;
+            if (levelMaker == null || levelMaker.listFloors == null ||
+                levelMaker.listFloors.Count < AutoDumpMinFloors)
+            {
+                return;
+            }
+
+            autoDumpAttempted = true;
+            try
+            {
+                string result = Dump();
+                if (Main.Logger != null)
+                {
+                    Main.Logger.Log(result);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (Main.Logger != null)
+                {
+                    Main.Logger.Error("meshFloor runtime dump failed: " + ex);
+                }
+            }
+        }
+
         internal static string Dump()
         {
             scrLevelMaker levelMaker = scrLevelMaker.instance;
@@ -54,7 +88,7 @@ namespace Kiner.ADOFAIEditorQoL.Core
                 Main.Logger.Log("meshFloor runtime dump written: " + path);
             }
 
-            return "meshFloor dump保存: " + path;
+            return "meshFloor dump saved: " + path;
         }
 
         private static void DumpGameObject(string title, GameObject root, StringBuilder sb)
