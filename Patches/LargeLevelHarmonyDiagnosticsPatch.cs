@@ -9,6 +9,8 @@ namespace Kiner.ADOFAIEditorQoL.Patches
 {
     internal static class LargeLevelHarmonyDiagnostics
     {
+        private static string explicitBridgeStatus = "未試行";
+
         internal static int ProbePrefixCalls
         {
             get { return LargeLevelFloorCreationDiagnostics.LargeFastPrefixCalls; }
@@ -37,6 +39,75 @@ namespace Kiner.ADOFAIEditorQoL.Patches
         internal static int TotalFastPrefixCalls
         {
             get { return LargeLevelFloorCreationDiagnostics.FastPrefixCalls; }
+        }
+
+        internal static string ExplicitBridgeStatus
+        {
+            get { return explicitBridgeStatus; }
+        }
+
+        internal static void EnsureExplicitBridge(Harmony harmony)
+        {
+            try
+            {
+                if (harmony == null)
+                {
+                    explicitBridgeStatus = "Harmony instance が null";
+                    return;
+                }
+
+                MethodInfo target = AccessTools.Method(typeof(scrLevelMaker), "MakeLevel");
+                MethodInfo transpiler = AccessTools.Method(typeof(LargeLevelMakeLevelBridgePatch), "Transpiler");
+                if (target == null)
+                {
+                    explicitBridgeStatus = "MakeLevel target が見つからない";
+                    return;
+                }
+                if (transpiler == null)
+                {
+                    explicitBridgeStatus = "bridge transpiler が見つからない";
+                    return;
+                }
+
+                if (IsBridgeInstalled(target))
+                {
+                    explicitBridgeStatus = "既に登録済み";
+                    return;
+                }
+
+                harmony.Patch(target, transpiler: new HarmonyMethod(transpiler));
+                explicitBridgeStatus = IsBridgeInstalled(target) ? "明示登録成功" : "Patch後も未登録";
+
+                if (Main.Logger != null)
+                {
+                    Main.Logger.Log("Large-level MakeLevel bridge: " + explicitBridgeStatus);
+                }
+            }
+            catch (Exception ex)
+            {
+                explicitBridgeStatus = "明示登録失敗: " + ex.GetType().Name + ": " + ex.Message;
+                if (Main.Logger != null)
+                {
+                    Main.Logger.Error("Large-level MakeLevel bridge install failed: " + ex);
+                }
+            }
+        }
+
+        private static bool IsBridgeInstalled(MethodInfo target)
+        {
+            var info = Harmony.GetPatchInfo(target);
+            if (info == null) return false;
+
+            for (int i = 0; i < info.Transpilers.Count; i++)
+            {
+                var patch = info.Transpilers[i];
+                MethodInfo patchMethod = patch.PatchMethod;
+                if (patchMethod != null && patchMethod.DeclaringType == typeof(LargeLevelMakeLevelBridgePatch))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         internal static string GetPatchSummary()
@@ -69,25 +140,21 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                     }
                 }
 
-                bool bridgeFound = false;
+                bool bridgeFound = IsBridgeInstalled(makeLevelTarget);
                 if (makeLevelInfo != null)
                 {
                     for (int i = 0; i < makeLevelInfo.Transpilers.Count; i++)
                     {
                         var patch = makeLevelInfo.Transpilers[i];
                         if (!string.IsNullOrEmpty(patch.owner)) owners.Add(patch.owner);
-                        MethodInfo patchMethod = patch.PatchMethod;
-                        if (patchMethod != null && patchMethod.DeclaringType == typeof(LargeLevelMakeLevelBridgePatch))
-                        {
-                            bridgeFound = true;
-                        }
                     }
                 }
 
                 string ownerText = owners.Count == 0 ? "なし" : string.Join(", ", new List<string>(owners).ToArray());
                 return (bridgeFound ? "MakeLevel bridge登録済み" : "MakeLevel bridge未登録") +
                        " / " + (fastPrefixFound ? "高速Prefix登録済み" : "高速Prefix未登録") +
-                       " / Floor Prefix " + floorPrefixCount + " / owners: " + ownerText;
+                       " / Floor Prefix " + floorPrefixCount + " / owners: " + ownerText +
+                       " / explicit: " + explicitBridgeStatus;
             }
             catch (Exception ex)
             {
@@ -96,10 +163,8 @@ namespace Kiner.ADOFAIEditorQoL.Patches
         }
     }
 
-    // The runtime currently reports the separate InstantiateFloatFloors fast Prefix as registered,
-    // yet the Prefix is not entered while the profiling patch proves MakeLevel still calls floor
-    // creation. Route that exact MakeLevel call through one bridge instead of depending on another
-    // Prefix on InstantiateFloatFloors. The bridge keeps the game's original method as fallback.
+    // Route MakeLevel's float-floor creation through one bridge. The game's original method remains
+    // the fallback for small charts or when any safety condition is not met.
     [HarmonyPatch(typeof(scrLevelMaker), "MakeLevel")]
     internal static class LargeLevelMakeLevelBridgePatch
     {
