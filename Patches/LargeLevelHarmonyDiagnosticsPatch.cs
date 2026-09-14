@@ -1,55 +1,41 @@
 using System;
 using System.Collections.Generic;
 using HarmonyLib;
-using UnityEngine;
 
 namespace Kiner.ADOFAIEditorQoL.Patches
 {
     internal static class LargeLevelHarmonyDiagnostics
     {
-        [ThreadStatic] private static int remakeDepth;
-        [ThreadStatic] private static bool fullRemakeActive;
-
-        internal static int ProbePrefixCalls { get; private set; }
-        internal static int LastTargetCount { get; private set; }
-        internal static int LastScopeDepth { get; private set; }
-        internal static bool LastMainEnabled { get; private set; }
-        internal static bool LastApplicationPlaying { get; private set; }
-
-        internal static void EnterRemake(bool remakeLevel)
+        // Expose diagnostics recorded by the fast Prefix itself. A separate probe Prefix on the
+        // same original method proved unreliable in the current Harmony/runtime combination.
+        internal static int ProbePrefixCalls
         {
-            remakeDepth++;
-            if (remakeDepth != 1 || !remakeLevel) return;
-
-            fullRemakeActive = true;
-            ProbePrefixCalls = 0;
-            LastTargetCount = 0;
-            LastScopeDepth = 0;
-            LastMainEnabled = Main.Enabled;
-            LastApplicationPlaying = Application.isPlaying;
-            LargeLevelFloorCreationDiagnostics.Prepare(0);
+            get { return LargeLevelFloorCreationDiagnostics.LargeFastPrefixCalls; }
         }
 
-        internal static void ExitRemake()
+        internal static int LastTargetCount
         {
-            if (remakeDepth <= 0) return;
-            if (remakeDepth == 1) fullRemakeActive = false;
-            remakeDepth--;
+            get { return LargeLevelFloorCreationDiagnostics.LastObservedTargetCount; }
         }
 
-        internal static void RecordInstantiateProbe(scrLevelMaker levelMaker)
+        internal static int LastScopeDepth
         {
-            if (!fullRemakeActive) return;
+            get { return LargeLevelFloorCreationDiagnostics.LastObservedScopeDepth; }
+        }
 
-            ProbePrefixCalls++;
-            LastScopeDepth = LargeLevelRemakeDedupState.ScopeDepth;
-            LastMainEnabled = Main.Enabled;
-            LastApplicationPlaying = Application.isPlaying;
+        internal static bool LastMainEnabled
+        {
+            get { return LargeLevelFloorCreationDiagnostics.LastObservedMainEnabled; }
+        }
 
-            if (levelMaker != null && levelMaker.floorAngles != null)
-            {
-                LastTargetCount = levelMaker.floorAngles.Length + 1;
-            }
+        internal static bool LastApplicationPlaying
+        {
+            get { return LargeLevelFloorCreationDiagnostics.LastObservedApplicationPlaying; }
+        }
+
+        internal static int TotalFastPrefixCalls
+        {
+            get { return LargeLevelFloorCreationDiagnostics.FastPrefixCalls; }
         }
 
         internal static string GetPatchSummary()
@@ -84,32 +70,6 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             {
                 return "PatchInfo取得失敗: " + ex.GetType().Name + ": " + ex.Message;
             }
-        }
-    }
-
-    [HarmonyPatch(typeof(scnEditor), "RemakePath", new[] { typeof(bool), typeof(bool) })]
-    internal static class LargeLevelHarmonyDiagnosticRemakePatch
-    {
-        [HarmonyPriority(Priority.First)]
-        private static void Prefix(bool remakeLevel)
-        {
-            LargeLevelHarmonyDiagnostics.EnterRemake(remakeLevel);
-        }
-
-        private static Exception Finalizer(Exception __exception)
-        {
-            LargeLevelHarmonyDiagnostics.ExitRemake();
-            return __exception;
-        }
-    }
-
-    [HarmonyPatch(typeof(scrLevelMaker), "InstantiateFloatFloors")]
-    internal static class LargeLevelHarmonyDiagnosticInstantiatePatch
-    {
-        [HarmonyPriority(Priority.First)]
-        private static void Prefix(scrLevelMaker __instance)
-        {
-            LargeLevelHarmonyDiagnostics.RecordInstantiateProbe(__instance);
         }
     }
 }
