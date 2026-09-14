@@ -14,6 +14,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
         internal static int LastInitialFloorCount { get; private set; }
         internal static int LastSpawnCalls { get; private set; }
         internal static int LastAwakeCalls { get; private set; }
+        internal static string LastSkipReason { get; private set; }
 
         internal static double LastSpawnMs
         {
@@ -34,11 +35,20 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             LastInitialFloorCount = initialFloorCount;
             LastSpawnCalls = 0;
             LastAwakeCalls = 0;
+            LastSkipReason = null;
+        }
+
+        internal static void Skip(string reason)
+        {
+            LastFastPathUsed = false;
+            LastSkipReason = reason;
+            measuring = false;
         }
 
         internal static void BeginFastPath()
         {
             LastFastPathUsed = true;
+            LastSkipReason = null;
             measuring = true;
         }
 
@@ -87,10 +97,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
         [HarmonyPriority(Priority.Last)]
         private static bool Prefix(scrLevelMaker __instance)
         {
-            if (!Main.Enabled || !ADOBase.isLevelEditor ||
-                LargeLevelRemakeDedupState.ScopeDepth != 1 || __instance == null ||
-                __instance.floorAngles == null || __instance.listFloors == null ||
-                !Application.isPlaying)
+            if (__instance == null || __instance.floorAngles == null || __instance.listFloors == null)
             {
                 return true;
             }
@@ -102,14 +109,38 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             }
 
             LargeLevelFloorCreationDiagnostics.Prepare(__instance.listFloors.Count);
+
+            if (!Main.Enabled)
+            {
+                LargeLevelFloorCreationDiagnostics.Skip("Editor QoL が無効");
+                return true;
+            }
+
+            // Being inside the patched scnEditor.RemakePath is a stronger and more reliable signal
+            // than ADOBase.isLevelEditor. Some editor load paths temporarily expose a false global
+            // flag, and nested RemakePath calls can legitimately raise ScopeDepth above one.
+            if (LargeLevelRemakeDedupState.ScopeDepth <= 0)
+            {
+                LargeLevelFloorCreationDiagnostics.Skip("scnEditor.RemakePath スコープ外");
+                return true;
+            }
+
+            if (!Application.isPlaying)
+            {
+                LargeLevelFloorCreationDiagnostics.Skip("Application.isPlaying = false");
+                return true;
+            }
+
             if (__instance.meshFloor == null)
             {
+                LargeLevelFloorCreationDiagnostics.Skip("meshFloor が null");
                 return true;
             }
 
             scrFloor floorPrefab = __instance.meshFloor.GetComponent<scrFloor>();
             if (floorPrefab == null)
             {
+                LargeLevelFloorCreationDiagnostics.Skip("meshFloor に scrFloor がない");
                 return true;
             }
 
