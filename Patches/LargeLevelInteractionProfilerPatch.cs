@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using ADOFAI;
 using HarmonyLib;
 
 namespace Kiner.ADOFAIEditorQoL.Patches
@@ -354,7 +355,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
         }
     }
 
-    [HarmonyPatch(typeof(scnEditor), "Play", new Type[] { })]
+    [HarmonyPatch(typeof(scnEditor), "Play")]
     internal static class LargeLevelProfilePlayPatch
     {
         private static void Prefix(out long __state)
