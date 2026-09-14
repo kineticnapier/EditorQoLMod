@@ -87,6 +87,7 @@
     <Compile Include="Patches\LargeLevelFastFloorCreationPatch.cs" />
     <Compile Include="Patches\LargeLevelLazyEditorNumbersPatch.cs" />
     <Compile Include="Patches\LargeLevelLazyEditorNumberSpawnPatch.cs" />
+    <Compile Include="Patches\LargeLevelPlayEditorNumberOptimizationPatch.cs" />
     <Compile Include="Patches\LargeLevelFloorAwakeOptimizationPatch.cs" />
     <Compile Include="Patches\LargeLevelHarmonyDiagnosticsPatch.cs" />
     <Compile Include="Patches\ColorWavePhasePatch.cs" />
