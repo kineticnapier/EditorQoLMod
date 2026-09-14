@@ -21,6 +21,7 @@ namespace Kiner.ADOFAIEditorQoL
             EventPresetStore.Initialize(ModPath);
             EditorQoLPreferences.Initialize(ModPath);
             SelectionRangeStore.Initialize(ModPath);
+            UI.EditorQoLWorkbenchIntegration.Initialize();
             harmony = new Harmony(modEntry.Info.Id);
             harmony.PatchAll();
             modEntry.OnToggle = OnToggle;
@@ -35,10 +36,12 @@ namespace Kiner.ADOFAIEditorQoL
             UI.EditorQoLPanel.SetModEnabled(value);
             if (value)
             {
+                UI.EditorQoLWorkbenchIntegration.Initialize();
                 RuntimeEffects.ReactivateCurrentScene();
             }
             else
             {
+                UI.EditorQoLWorkbenchIntegration.Shutdown();
                 RuntimeEffects.Cleanup();
             }
             return true;
@@ -53,6 +56,7 @@ namespace Kiner.ADOFAIEditorQoL
             SelectionRangeStore.Save();
             RuntimeEffects.Cleanup();
             Pacl2UndoBridge.Cleanup();
+            UI.EditorQoLWorkbenchIntegration.Shutdown();
             UI.EditorQoLPanel.DestroyCurrent();
             if (harmony != null) harmony.UnpatchAll(modEntry.Info.Id);
             return true;
