@@ -67,4 +67,33 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             gameObject.SetActive(active);
         }
     }
+
+    // Undo/Redo can temporarily make ADOBase.lm an unreliable large-level probe while the action is
+    // replacing/restoring editor state. The outer action has already been admitted only after a
+    // successful large-level check, so nested timing probes should remain enabled for its lifetime.
+    [HarmonyPatch(typeof(LargeLevelInteractionProfiler), "IsLargeLevel")]
+    internal static class LargeLevelInteractionProfilerActionScopeRepairPatch
+    {
+        private static readonly FieldInfo ActionDepthField =
+            AccessTools.Field(typeof(LargeLevelInteractionProfiler), "actionDepth");
+
+        private static void Postfix(ref bool __result)
+        {
+            if (__result || ActionDepthField == null) return;
+
+            try
+            {
+                object value = ActionDepthField.GetValue(null);
+                if (value is int && (int)value > 0)
+                {
+                    __result = true;
+                }
+            }
+            catch
+            {
+                // Profiling is optional; never affect editor behavior if this diagnostic bridge
+                // stops matching a future build.
+            }
+        }
+    }
 }
