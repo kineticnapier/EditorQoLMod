@@ -16,6 +16,15 @@ namespace Kiner.ADOFAIEditorQoL.Patches
         internal static int LastAwakeCalls { get; private set; }
         internal static string LastSkipReason { get; private set; }
 
+        // Monotonic self-diagnostics owned by the fast Prefix itself. These do not depend on a
+        // second Harmony Prefix being registered on InstantiateFloatFloors.
+        internal static int FastPrefixCalls { get; private set; }
+        internal static int LargeFastPrefixCalls { get; private set; }
+        internal static int LastObservedTargetCount { get; private set; }
+        internal static int LastObservedScopeDepth { get; private set; }
+        internal static bool LastObservedMainEnabled { get; private set; }
+        internal static bool LastObservedApplicationPlaying { get; private set; }
+
         internal static double LastSpawnMs
         {
             get { return spawnTicks * 1000.0 / Stopwatch.Frequency; }
@@ -24,6 +33,21 @@ namespace Kiner.ADOFAIEditorQoL.Patches
         internal static double LastAwakeMs
         {
             get { return awakeTicks * 1000.0 / Stopwatch.Frequency; }
+        }
+
+        internal static void RecordFastPrefix(scrLevelMaker levelMaker)
+        {
+            FastPrefixCalls++;
+
+            if (levelMaker == null || levelMaker.floorAngles == null) return;
+            int targetCount = levelMaker.floorAngles.Length + 1;
+            if (targetCount < LargeLevelRemakeDedupState.MinFloorCount) return;
+
+            LargeFastPrefixCalls++;
+            LastObservedTargetCount = targetCount;
+            LastObservedScopeDepth = LargeLevelRemakeDedupState.ScopeDepth;
+            LastObservedMainEnabled = Main.Enabled;
+            LastObservedApplicationPlaying = Application.isPlaying;
         }
 
         internal static void Prepare(int initialFloorCount)
@@ -97,6 +121,10 @@ namespace Kiner.ADOFAIEditorQoL.Patches
         [HarmonyPriority(Priority.Last)]
         private static bool Prefix(scrLevelMaker __instance)
         {
+            // Record from the Prefix that GetPatchInfo already proves is installed. This avoids
+            // relying on a second diagnostic Prefix on the same original method.
+            LargeLevelFloorCreationDiagnostics.RecordFastPrefix(__instance);
+
             if (__instance == null || __instance.floorAngles == null || __instance.listFloors == null)
             {
                 return true;
