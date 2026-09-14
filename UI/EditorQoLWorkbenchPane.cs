@@ -193,7 +193,13 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 view.Text("最新計測: " + snapshot.FloorCount.ToString("N0", CultureInfo.InvariantCulture) + " タイル", 10f, true)
                     .Text(PerformanceLine("RemakePath 合計", snapshot.RemakePathMs, 1), 10f, false)
                     .Text(PerformanceLine("MakeLevel", snapshot.MakeLevelMs, snapshot.MakeLevelCalls), 10f, false)
-                    .Text(PerformanceLine("└ InstantiateFloatFloors", snapshot.InstantiateFloatFloorsMs, snapshot.InstantiateFloatFloorsCalls), 10f, false);
+                    .Text(PerformanceLine("└ InstantiateFloatFloors", snapshot.InstantiateFloatFloorsMs, snapshot.InstantiateFloatFloorsCalls), 10f, false)
+                    .Text("  Harmony: " + LargeLevelHarmonyDiagnostics.GetPatchSummary(), 9f, false)
+                    .Text("  Probe Prefix: " + LargeLevelHarmonyDiagnostics.ProbePrefixCalls.ToString(CultureInfo.InvariantCulture) +
+                          " 回 / target=" + LargeLevelHarmonyDiagnostics.LastTargetCount.ToString("N0", CultureInfo.InvariantCulture) +
+                          " / scope=" + LargeLevelHarmonyDiagnostics.LastScopeDepth.ToString(CultureInfo.InvariantCulture) +
+                          " / enabled=" + LargeLevelHarmonyDiagnostics.LastMainEnabled.ToString() +
+                          " / playing=" + LargeLevelHarmonyDiagnostics.LastApplicationPlaying.ToString(), 9f, false);
 
                 if (LargeLevelFloorCreationDiagnostics.LastFastPathUsed)
                 {
@@ -209,6 +215,18 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 else
                 {
                     view.Text("  高速床生成: 未使用", 9f, false);
+                    if (!string.IsNullOrEmpty(LargeLevelFloorCreationDiagnostics.LastSkipReason))
+                    {
+                        view.Text("  skip: " + LargeLevelFloorCreationDiagnostics.LastSkipReason, 9f, false);
+                    }
+                    else if (LargeLevelHarmonyDiagnostics.ProbePrefixCalls > 0)
+                    {
+                        view.Text("  skip理由なし: probeは到達。高速Prefixが実行されなかった可能性あり。", 9f, true);
+                    }
+                    else
+                    {
+                        view.Text("  probe未到達: InstantiateFloatFloors のHarmony実行経路を要確認。", 9f, true);
+                    }
                 }
 
                 view.Text(PerformanceLine("ApplyEventsToFloors", snapshot.ApplyEventsToFloorsMs, snapshot.ApplyEventsToFloorsCalls), 10f, false)
