@@ -37,7 +37,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             if (child == null) return;
 
             bool largeFastPath = Main.Enabled &&
-                                 LargeLevelRemakeDedupState.ScopeDepth == 1 &&
+                                 LargeLevelRemakeDedupState.ScopeDepth > 0 &&
                                  LargeLevelFloorCreationDiagnostics.LastFastPathUsed;
 
             if (!largeFastPath || child.parent != parent)
