@@ -61,6 +61,7 @@
     <Compile Include="Core\EventPresetStore.cs" />
     <Compile Include="Core\BatchInspectorOperations.cs" />
     <Compile Include="Core\DiagnosticsOperations.cs" />
+    <Compile Include="Core\FloorPrefabDumper.cs" />
     <Compile Include="Core\EventOperations.cs" />
     <Compile Include="Core\NavigationOperations.cs" />
     <Compile Include="Core\ScreenScrollOperations.cs" />
