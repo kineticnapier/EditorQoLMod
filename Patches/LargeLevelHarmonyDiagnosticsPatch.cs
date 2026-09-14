@@ -27,6 +27,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             LastScopeDepth = 0;
             LastMainEnabled = Main.Enabled;
             LastApplicationPlaying = Application.isPlaying;
+            LargeLevelFloorCreationDiagnostics.Prepare(0);
         }
 
         internal static void ExitRemake()
@@ -86,7 +87,6 @@ namespace Kiner.ADOFAIEditorQoL.Patches
         }
     }
 
-    // Runs before normal RemakePath prefixes so each full-load diagnostic starts from a clean slate.
     [HarmonyPatch(typeof(scnEditor), "RemakePath", new[] { typeof(bool), typeof(bool) })]
     internal static class LargeLevelHarmonyDiagnosticRemakePatch
     {
@@ -103,9 +103,6 @@ namespace Kiner.ADOFAIEditorQoL.Patches
         }
     }
 
-    // A void, read-only probe at Priority.First. This is deliberately separate from the fast-path
-    // bool Prefix so we can tell whether the target method was reached even if another Harmony
-    // prefix suppresses the original method before our fast-path prefix gets a chance to run.
     [HarmonyPatch(typeof(scrLevelMaker), "InstantiateFloatFloors")]
     internal static class LargeLevelHarmonyDiagnosticInstantiatePatch
     {
