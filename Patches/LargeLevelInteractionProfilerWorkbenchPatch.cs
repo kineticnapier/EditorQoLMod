@@ -31,7 +31,8 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             AppendAction(__result, "Redo", LargeLevelInteractionProfiler.LatestRedo);
             AppendAction(__result, "Play", LargeLevelInteractionProfiler.LatestPlay);
 
-            __result.Text("※ 0.0 ms はまだ未計測の可能性があります。", 9f, false);
+            __result.Text("※ 内訳は包含関係があるため、単純加算しても合計にはなりません。", 9f, false)
+                .Text("※ 0.0 ms はまだ未計測の可能性があります。", 9f, false);
         }
 
         private static void AppendAction(WorkbenchPaneView view, string label, LargeLevelInteractionSnapshot snapshot)
@@ -46,7 +47,13 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                 .Text(FormatLine("├ SaveState", snapshot.SaveStateMs, snapshot.SaveStateCalls), 9f, false)
                 .Text(FormatLine("├ LevelData.Copy", snapshot.LevelDataCopyMs, snapshot.LevelDataCopyCalls), 9f, false)
                 .Text(FormatLine("├ RemakePath", snapshot.RemakePathMs, snapshot.RemakePathCalls), 9f, false)
-                .Text(FormatLine("└ ReloadAssets", snapshot.ReloadAssetsMs, snapshot.ReloadAssetsCalls), 9f, false);
+                .Text(FormatLine("├ ReloadAssets", snapshot.ReloadAssetsMs, snapshot.ReloadAssetsCalls), 9f, false)
+                .Text(FormatLine("├ customLevel.Play", snapshot.CustomLevelPlayMs, snapshot.CustomLevelPlayCalls), 9f, false)
+                .Text(FormatLine("│ ├ FinishCustomLevelLoading", snapshot.FinishCustomLevelLoadingMs,
+                    snapshot.FinishCustomLevelLoadingCalls), 9f, false)
+                .Text(FormatLine("│ ├ ApplyEventsToFloors", snapshot.ApplyEventsToFloorsMs,
+                    snapshot.ApplyEventsToFloorsCalls), 9f, false)
+                .Text(FormatLine("│ └ PrepVfx", snapshot.PrepVfxMs, snapshot.PrepVfxCalls), 9f, false);
         }
 
         private static string FormatLine(string label, double milliseconds, int calls)
