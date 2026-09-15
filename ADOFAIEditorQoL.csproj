@@ -89,6 +89,7 @@
     <Compile Include="Patches\DuplicateFloorsShortcutPatch.cs" />
     <Compile Include="Patches\HiddenEventButtonsPatch.cs" />
     <Compile Include="Runtime\AssetProbe.cs" />
+    <Compile Include="Runtime\IconCatalogProbe.cs" />
     <Compile Include="Runtime\CustomTextFontRuntime.cs" />
     <Compile Include="Runtime\MultiTileDecorationRuntime.cs" />
     <Compile Include="Runtime\RuntimeEffects.cs" />
