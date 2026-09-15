@@ -335,7 +335,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                 case 3: return floor.veryEarlyEffects;
                 case 4: return floor.veryLateEffects;
                 case 5: return floor.tooEarlyEffects;
-                case 6: return floor.veryLateEffects;
+                case 6: return floor.tooLateEffects;
                 case 7: return floor.lossEffects;
                 case 8: return floor.onCheckpointEffects;
                 default: throw new IndexOutOfRangeException();
