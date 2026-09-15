@@ -28,11 +28,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
     internal sealed class AssetProbeWorkbenchPaneProvider : IDockablePaneProvider
     {
         private readonly AssetProbeWorkbenchPane pane = new AssetProbeWorkbenchPane();
-
-        public IEnumerable<IDockablePane> CreatePanes()
-        {
-            yield return pane;
-        }
+        public IEnumerable<IDockablePane> CreatePanes() { yield return pane; }
     }
 
     internal sealed class AssetProbeWorkbenchPane : IDockablePane
@@ -41,6 +37,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
         private string status = "ロード済みUnityオブジェクトを調査します。";
         private string summary = "未計測";
         private string reportPath = string.Empty;
+        private string exportDirectory = string.Empty;
 
         public string Id { get { return "editor-qol.asset-probe"; } }
         public string Title { get { return "Editor QoL: Asset Probe"; } }
@@ -50,7 +47,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
         {
             WorkbenchPaneView view = new WorkbenchPaneView()
                 .Text("Asset Probe", 16f, true)
-                .Text("実行中ADOFAIが参照しているPrefab / Mesh / Material / Shader / Texture / Sprite / Unity参照を調査します。", 9f, false)
+                .Text("Mesh頂点/UV/triangles、Material全プロパティを記録し、参照Texture2DをPNGへ書き出します。", 9f, false)
                 .Spacer(4)
                 .Button("純正 meshFloor prefab を調査", "probe-mesh-floor", string.Empty, false)
                 .Button("純正 spriteFloor prefab を調査", "probe-sprite-floor", string.Empty, false)
@@ -65,9 +62,8 @@ namespace Kiner.ADOFAIEditorQoL.UI
                 .Text("結果: " + summary, 9f, true)
                 .Text(status, 9f, false);
 
-            if (!string.IsNullOrEmpty(reportPath))
-                view.Text("Report: " + reportPath, 8f, false);
-
+            if (!string.IsNullOrEmpty(reportPath)) view.Text("Report: " + reportPath, 8f, false);
+            if (!string.IsNullOrEmpty(exportDirectory)) view.Text("Assets: " + exportDirectory, 8f, false);
             return view;
         }
 
@@ -88,10 +84,11 @@ namespace Kiner.ADOFAIEditorQoL.UI
             try
             {
                 AssetProbeResult result = probe();
-                summary = result.RootSummary + " / " + result.GameObjectCount + " objects / " +
-                    result.ComponentCount + " components";
+                summary = result.RootSummary + " / " + result.GameObjectCount + " objects / " + result.ComponentCount +
+                    " components / " + result.ExportedTextureCount + " textures";
                 reportPath = result.ReportPath;
-                status = "調査完了 v" + ModVersion.Current;
+                exportDirectory = result.ExportDirectory;
+                status = "調査・書き出し完了 v" + ModVersion.Current;
             }
             catch (Exception ex)
             {
@@ -102,9 +99,6 @@ namespace Kiner.ADOFAIEditorQoL.UI
             Publish();
         }
 
-        private void Publish()
-        {
-            Workbench.PublishPane(Id);
-        }
+        private void Publish() { Workbench.PublishPane(Id); }
     }
 }
