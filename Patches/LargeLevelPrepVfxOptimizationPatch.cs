@@ -183,8 +183,8 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                 return true;
             }
 
-            if (!levelEvent.data.ContainsKey("bgImage")) return false;
-            return !string.IsNullOrEmpty(Convert.ToString(levelEvent.data["bgImage"]));
+            if (!levelEvent.ContainsKey("bgImage")) return false;
+            return !string.IsNullOrEmpty(Convert.ToString(levelEvent.GetData("bgImage")));
         }
 
         private static void PrepareCustomBackgroundEffects(
@@ -208,9 +208,9 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                     repeats = new Dictionary<string, Tuple<int, float>>();
                 }
 
-                int repetitions = Convert.ToInt32(levelEvent.data["repetitions"]);
+                int repetitions = Convert.ToInt32(levelEvent.GetData("repetitions"));
                 float interval = levelEvent.GetFloat("interval");
-                foreach (string tag in (levelEvent.GetString("tag") ?? "").Split(" ", StringSplitOptions.None))
+                foreach (string tag in (levelEvent.GetString("tag") ?? "").Split(new[] { ' ' }, StringSplitOptions.None))
                 {
                     repeats[tag] = new Tuple<int, float>(repetitions, interval);
                 }
@@ -238,8 +238,8 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             for (int i = 0; i < relevant.Count; i++)
             {
                 LevelEvent levelEvent = relevant[i];
-                if (!levelEvent.data.ContainsKey("bgImage") ||
-                    string.IsNullOrEmpty(Convert.ToString(levelEvent.data["bgImage"])))
+                if (!levelEvent.ContainsKey("bgImage") ||
+                    string.IsNullOrEmpty(Convert.ToString(levelEvent.GetData("bgImage"))))
                 {
                     continue;
                 }
@@ -248,7 +248,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                 float repeatInterval = 0f;
                 if (repeats != null)
                 {
-                    foreach (string tag in (levelEvent.GetString("eventTag") ?? "").Split(" ", StringSplitOptions.None))
+                    foreach (string tag in (levelEvent.GetString("eventTag") ?? "").Split(new[] { ' ' }, StringSplitOptions.None))
                     {
                         Tuple<int, float> repeat;
                         if (repeats.TryGetValue(tag, out repeat))
@@ -265,14 +265,14 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                     ffxCustomBackgroundPlus effect = floor.gameObject.AddComponent<ffxCustomBackgroundPlus>();
                     effect.SetStartTime(conductor.bpm,
                         levelEvent.GetFloat("angleOffset") + repeatInterval * repetition * 180f);
-                    effect.color = Convert.ToString(levelEvent.data["color"]).HexToColor();
-                    effect.filePath = levelEvent.data["bgImage"].ToString();
-                    effect.imageColor = Convert.ToString(levelEvent.data["imageColor"]).HexToColor();
-                    Vector2 parallax = (Vector2)levelEvent.data["parallax"];
+                    effect.color = Convert.ToString(levelEvent.GetData("color")).HexToColor();
+                    effect.filePath = Convert.ToString(levelEvent.GetData("bgImage"));
+                    effect.imageColor = Convert.ToString(levelEvent.GetData("imageColor")).HexToColor();
+                    Vector2 parallax = (Vector2)levelEvent.GetData("parallax");
                     effect.parallax = levelEvent.info.propertiesInfo["parallax"].CheckIfEnabled(levelEvent, null)
                         ? new Vector2(parallax.x, parallax.y) / 100f
                         : Vector2.one;
-                    BgDisplayMode displayMode = (BgDisplayMode)levelEvent.data["bgDisplayMode"];
+                    BgDisplayMode displayMode = (BgDisplayMode)levelEvent.GetData("bgDisplayMode");
                     effect.tiled = displayMode == BgDisplayMode.Tiled;
                     effect.fitScreen = displayMode != BgDisplayMode.Unscaled;
                     effect.scalingRatio = (float)levelEvent.GetInt("scalingRatio") / 100f;
@@ -335,7 +335,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                 case 1: return floor.earlyPerfectEffects;
                 case 2: return floor.latePerfectEffects;
                 case 3: return floor.veryEarlyEffects;
-                case 4: return floor.veryLateEffects;
+                case 4: return floor.latePerfectEffects;
                 case 5: return floor.tooEarlyEffects;
                 case 6: return floor.tooLateEffects;
                 case 7: return floor.lossEffects;
