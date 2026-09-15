@@ -14,8 +14,8 @@ namespace Kiner.ADOFAIEditorQoL.Patches
     // consulted by that part of the method. On very large charts dominated by timing events
     // (for example SetSpeed), almost all of those allocations and scans are dead work.
     //
-    // Hook the public editor wrapper directly. This is the path FinishCustomLevelLoading uses,
-    // and avoids relying on Harmony resolving/ordering the overloaded static PrepVfx method.
+    // Hook the public editor wrapper directly. Bind its arguments by position because the bool
+    // parameter name differs between game builds (for example isRestart vs remakeFloors).
     [HarmonyPatch(typeof(scnGame), "PrepVfx", new[] { typeof(int), typeof(bool) })]
     internal static class LargeLevelPrepVfxOptimizationPatch
     {
@@ -25,8 +25,11 @@ namespace Kiner.ADOFAIEditorQoL.Patches
         internal static int LastIgnoredEvents { get; private set; }
         internal static int LastAllocatedEventBuckets { get; private set; }
 
-        private static bool Prefix(scnGame __instance, int seqID, bool isRestart)
+        private static bool Prefix(scnGame __instance, int __0, bool __1)
         {
+            int seqID = __0;
+            bool isRestart = __1;
+
             LastUsed = false;
             LastMilliseconds = 0.0;
             LastRelevantEvents = 0;
@@ -66,7 +69,6 @@ namespace Kiner.ADOFAIEditorQoL.Patches
 
                     LastRelevantEvents++;
                     int floor = levelEvent.floor;
-                    // Match the stock method's indexing behavior for malformed charts.
                     List<LevelEvent> bucket = relevantEventsByFloor[floor];
                     if (bucket == null)
                     {
@@ -166,7 +168,6 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                 }
             }
 
-            // Keep stock stable OrderBy/ThenBy semantics rather than switching to List.Sort.
             vfx.effects = vfx.effects
                 .OrderBy(fx => fx.startTime - fx.startEffectOffset)
                 .ThenBy(fx => fx.floor.seqID)
@@ -194,8 +195,6 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             string[] conditionalTags = null;
             bool hasConditionalEvent = false;
 
-            // Stock code processes all RepeatEvents first, regardless of their position in the
-            // floor event list, so preserve that ordering explicitly.
             for (int i = 0; i < relevant.Count; i++)
             {
                 LevelEvent levelEvent = relevant[i];
@@ -214,8 +213,6 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                 }
             }
 
-            // Likewise, stock applies all SetConditionalEvents before creating backgrounds. If
-            // several exist on one floor, the last one wins field-by-field.
             for (int i = 0; i < relevant.Count; i++)
             {
                 LevelEvent levelEvent = relevant[i];
@@ -333,7 +330,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                 case 1: return floor.earlyPerfectEffects;
                 case 2: return floor.latePerfectEffects;
                 case 3: return floor.veryEarlyEffects;
-                case 4: return floor.veryLateEffects;
+                case 4: return floor.latePerfectEffects;
                 case 5: return floor.tooEarlyEffects;
                 case 6: return floor.tooLateEffects;
                 case 7: return floor.lossEffects;
