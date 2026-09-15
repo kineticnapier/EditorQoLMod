@@ -184,7 +184,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             }
 
             if (!levelEvent.ContainsKey("bgImage")) return false;
-            return !string.IsNullOrEmpty(Convert.ToString(levelEvent.GetData("bgImage")));
+            return !string.IsNullOrEmpty(Convert.ToString(levelEvent["bgImage"]));
         }
 
         private static void PrepareCustomBackgroundEffects(
@@ -208,7 +208,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                     repeats = new Dictionary<string, Tuple<int, float>>();
                 }
 
-                int repetitions = Convert.ToInt32(levelEvent.GetData("repetitions"));
+                int repetitions = Convert.ToInt32(levelEvent["repetitions"]);
                 float interval = levelEvent.GetFloat("interval");
                 foreach (string tag in (levelEvent.GetString("tag") ?? "").Split(new[] { ' ' }, StringSplitOptions.None))
                 {
@@ -239,7 +239,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             {
                 LevelEvent levelEvent = relevant[i];
                 if (!levelEvent.ContainsKey("bgImage") ||
-                    string.IsNullOrEmpty(Convert.ToString(levelEvent.GetData("bgImage"))))
+                    string.IsNullOrEmpty(Convert.ToString(levelEvent["bgImage"])))
                 {
                     continue;
                 }
@@ -265,14 +265,14 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                     ffxCustomBackgroundPlus effect = floor.gameObject.AddComponent<ffxCustomBackgroundPlus>();
                     effect.SetStartTime(conductor.bpm,
                         levelEvent.GetFloat("angleOffset") + repeatInterval * repetition * 180f);
-                    effect.color = Convert.ToString(levelEvent.GetData("color")).HexToColor();
-                    effect.filePath = Convert.ToString(levelEvent.GetData("bgImage"));
-                    effect.imageColor = Convert.ToString(levelEvent.GetData("imageColor")).HexToColor();
-                    Vector2 parallax = (Vector2)levelEvent.GetData("parallax");
+                    effect.color = Convert.ToString(levelEvent["color"]).HexToColor();
+                    effect.filePath = Convert.ToString(levelEvent["bgImage"]);
+                    effect.imageColor = Convert.ToString(levelEvent["imageColor"]).HexToColor();
+                    Vector2 parallax = (Vector2)levelEvent["parallax"];
                     effect.parallax = levelEvent.info.propertiesInfo["parallax"].CheckIfEnabled(levelEvent, null)
                         ? new Vector2(parallax.x, parallax.y) / 100f
                         : Vector2.one;
-                    BgDisplayMode displayMode = (BgDisplayMode)levelEvent.GetData("bgDisplayMode");
+                    BgDisplayMode displayMode = (BgDisplayMode)levelEvent["bgDisplayMode"];
                     effect.tiled = displayMode == BgDisplayMode.Tiled;
                     effect.fitScreen = displayMode != BgDisplayMode.Unscaled;
                     effect.scalingRatio = (float)levelEvent.GetInt("scalingRatio") / 100f;
