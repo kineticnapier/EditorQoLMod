@@ -22,6 +22,7 @@ namespace Kiner.ADOFAIEditorQoL
             EditorQoLPreferences.Initialize(ModPath);
             SelectionRangeStore.Initialize(ModPath);
             UI.EditorQoLWorkbenchIntegration.Initialize();
+            UI.AssetProbeWorkbenchIntegration.Initialize();
             harmony = new Harmony(modEntry.Info.Id);
             harmony.PatchAll();
             modEntry.OnToggle = OnToggle;
@@ -37,10 +38,12 @@ namespace Kiner.ADOFAIEditorQoL
             if (value)
             {
                 UI.EditorQoLWorkbenchIntegration.Initialize();
+                UI.AssetProbeWorkbenchIntegration.Initialize();
                 RuntimeEffects.ReactivateCurrentScene();
             }
             else
             {
+                UI.AssetProbeWorkbenchIntegration.Shutdown();
                 UI.EditorQoLWorkbenchIntegration.Shutdown();
                 RuntimeEffects.Cleanup();
             }
@@ -56,6 +59,7 @@ namespace Kiner.ADOFAIEditorQoL
             SelectionRangeStore.Save();
             RuntimeEffects.Cleanup();
             Pacl2UndoBridge.Cleanup();
+            UI.AssetProbeWorkbenchIntegration.Shutdown();
             UI.EditorQoLWorkbenchIntegration.Shutdown();
             UI.EditorQoLPanel.DestroyCurrent();
             if (harmony != null) harmony.UnpatchAll(modEntry.Info.Id);
