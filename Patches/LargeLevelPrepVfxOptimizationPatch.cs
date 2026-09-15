@@ -335,7 +335,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                 case 1: return floor.earlyPerfectEffects;
                 case 2: return floor.latePerfectEffects;
                 case 3: return floor.veryEarlyEffects;
-                case 4: return floor.latePerfectEffects;
+                case 4: return floor.veryLateEffects;
                 case 5: return floor.tooEarlyEffects;
                 case 6: return floor.tooLateEffects;
                 case 7: return floor.lossEffects;
