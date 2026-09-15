@@ -8,18 +8,15 @@ using UnityEngine;
 
 namespace Kiner.ADOFAIEditorQoL.Patches
 {
-    // scnGame.PrepVfx builds a List<LevelEvent> for every floor, then allocates a Dictionary,
-    // string[9], and two FindAll result lists for every floor even though only RepeatEvents,
-    // SetConditionalEvents, and events carrying a non-empty bgImage are consulted by that part
-    // of the method. On very large charts dominated by timing events (for example SetSpeed),
-    // almost all of those allocations and scans are dead work.
+    // scnGame.PrepVfx(List<scrFloor>, ...) builds a List<LevelEvent> for every floor, then
+    // allocates a Dictionary, string[9], and two FindAll result lists for every floor even though
+    // only RepeatEvents, SetConditionalEvents, and events carrying a non-empty bgImage are
+    // consulted by that part of the method. On very large charts dominated by timing events
+    // (for example SetSpeed), almost all of those allocations and scans are dead work.
     //
-    // This replacement keeps the stock semantics but uses sparse per-floor event buckets and
-    // direct conditional-effect sets. It is limited to the editor and >=10k floors.
-    [HarmonyPatch(typeof(scnGame), "PrepVfx", new[]
-    {
-        typeof(List<scrFloor>), typeof(int), typeof(List<LevelEvent>), typeof(bool)
-    })]
+    // Hook the public editor wrapper directly. This is the path FinishCustomLevelLoading uses,
+    // and avoids relying on Harmony resolving/ordering the overloaded static PrepVfx method.
+    [HarmonyPatch(typeof(scnGame), "PrepVfx", new[] { typeof(int), typeof(bool) })]
     internal static class LargeLevelPrepVfxOptimizationPatch
     {
         internal static bool LastUsed { get; private set; }
@@ -28,7 +25,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
         internal static int LastIgnoredEvents { get; private set; }
         internal static int LastAllocatedEventBuckets { get; private set; }
 
-        private static bool Prefix(List<scrFloor> floors, int seqID, List<LevelEvent> events, bool isRestart)
+        private static bool Prefix(scnGame __instance, int seqID, bool isRestart)
         {
             LastUsed = false;
             LastMilliseconds = 0.0;
@@ -36,14 +33,15 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             LastIgnoredEvents = 0;
             LastAllocatedEventBuckets = 0;
 
-            if (!Main.Enabled || !ADOBase.isLevelEditor || floors == null ||
+            List<scrFloor> floors = scrLevelMaker.instance != null ? scrLevelMaker.instance.listFloors : null;
+            if (!Main.Enabled || !ADOBase.isLevelEditor || __instance == null || floors == null ||
                 floors.Count < LargeLevelRemakeDedupState.MinFloorCount)
             {
                 return true;
             }
 
             long start = Stopwatch.GetTimestamp();
-            FastPrepVfx(floors, seqID, events, isRestart);
+            FastPrepVfx(floors, seqID, __instance.events, isRestart);
             LastMilliseconds = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
             LastUsed = true;
             return false;
@@ -337,7 +335,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                 case 3: return floor.veryEarlyEffects;
                 case 4: return floor.veryLateEffects;
                 case 5: return floor.tooEarlyEffects;
-                case 6: return floor.tooLateEffects;
+                case 6: return floor.veryLateEffects;
                 case 7: return floor.lossEffects;
                 case 8: return floor.onCheckpointEffects;
                 default: throw new IndexOutOfRangeException();
