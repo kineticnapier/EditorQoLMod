@@ -15,7 +15,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
     // (for example SetSpeed), almost all of those allocations and scans are dead work.
     //
     // Hook the public editor wrapper directly. Bind its arguments by position because the bool
-    // parameter name differs between game builds (for example isRestart vs remakeFloors).
+    // parameter name differs between game builds. In the current runtime this bool is remakeFloors.
     [HarmonyPatch(typeof(scnGame), "PrepVfx", new[] { typeof(int), typeof(bool) })]
     internal static class LargeLevelPrepVfxOptimizationPatch
     {
@@ -28,7 +28,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
         private static bool Prefix(scnGame __instance, int __0, bool __1)
         {
             int seqID = __0;
-            bool isRestart = __1;
+            bool remakeFloors = __1;
 
             LastUsed = false;
             LastMilliseconds = 0.0;
@@ -44,17 +44,17 @@ namespace Kiner.ADOFAIEditorQoL.Patches
             }
 
             long start = Stopwatch.GetTimestamp();
-            FastPrepVfx(floors, seqID, __instance.events, isRestart);
+            FastPrepVfx(floors, seqID, __instance.events, remakeFloors);
             LastMilliseconds = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
             LastUsed = true;
             return false;
         }
 
-        private static void FastPrepVfx(List<scrFloor> floors, int seqID, List<LevelEvent> events, bool isRestart)
+        private static void FastPrepVfx(List<scrFloor> floors, int seqID, List<LevelEvent> events, bool remakeFloors)
         {
             List<LevelEvent>[] relevantEventsByFloor = null;
 
-            if (!isRestart && events != null)
+            if (remakeFloors && events != null)
             {
                 relevantEventsByFloor = new List<LevelEvent>[floors.Count];
 
@@ -91,7 +91,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                 ffxChangeTrack changeTrack = floor.GetComponent<ffxChangeTrack>();
                 if (changeTrack != null)
                 {
-                    changeTrack.PrepFloor(isRestart);
+                    changeTrack.PrepFloor(remakeFloors);
                 }
 
                 floor.startPos = floor.transform.position;
@@ -100,7 +100,7 @@ namespace Kiner.ADOFAIEditorQoL.Patches
                     floor.SetOpacity(floor.opacityVal);
                 }
 
-                if (!isRestart && relevantEventsByFloor != null)
+                if (remakeFloors && relevantEventsByFloor != null)
                 {
                     List<LevelEvent> relevant = relevantEventsByFloor[floor.seqID];
                     if (relevant != null)
