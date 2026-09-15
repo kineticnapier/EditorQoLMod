@@ -21,6 +21,22 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
         private const int MaxNodes = 500;
         private const int MaxDepth = 10;
 
+        internal static AssetProbeResult ProbeMeshFloorPrefab()
+        {
+            scrLevelMaker maker = RequireLevelMaker();
+            if (maker.meshFloor == null)
+                throw new InvalidOperationException("scrLevelMaker.meshFloor がnullです。");
+            return Probe(maker.meshFloor, "meshFloor-prefab");
+        }
+
+        internal static AssetProbeResult ProbeSpriteFloorPrefab()
+        {
+            scrLevelMaker maker = RequireLevelMaker();
+            if (maker.spriteFloor == null)
+                throw new InvalidOperationException("scrLevelMaker.spriteFloor がnullです。");
+            return Probe(maker.spriteFloor, "spriteFloor-prefab");
+        }
+
         internal static AssetProbeResult ProbeLoadedObject(string targetName)
         {
             if (string.IsNullOrWhiteSpace(targetName))
@@ -35,11 +51,19 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
 
         internal static AssetProbeResult ProbeFirstEditorFloor()
         {
-            scrLevelMaker maker = scrLevelMaker.instance;
-            if (maker == null || maker.listFloors == null || maker.listFloors.Count == 0 || maker.listFloors[0] == null)
+            scrLevelMaker maker = RequireLevelMaker();
+            if (maker.listFloors == null || maker.listFloors.Count == 0 || maker.listFloors[0] == null)
                 throw new InvalidOperationException("エディタ床がまだ生成されていません。");
 
             return Probe(maker.listFloors[0].gameObject, "editor-floor-0");
+        }
+
+        private static scrLevelMaker RequireLevelMaker()
+        {
+            scrLevelMaker maker = scrLevelMaker.instance;
+            if (maker == null)
+                throw new InvalidOperationException("scrLevelMakerがまだ生成されていません。");
+            return maker;
         }
 
         private static GameObject FindLoadedObject(string targetName)
@@ -71,7 +95,6 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             report.AppendLine("Mod version: " + ModVersion.Current);
             report.AppendLine("Unity: " + Application.unityVersion);
             report.AppendLine("Root: " + root.name);
-            report.AppendLine("Scene: " + root.scene.name);
             report.AppendLine("HideFlags: " + root.hideFlags);
             report.AppendLine();
 

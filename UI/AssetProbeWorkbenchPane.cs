@@ -50,14 +50,17 @@ namespace Kiner.ADOFAIEditorQoL.UI
         {
             WorkbenchPaneView view = new WorkbenchPaneView()
                 .Text("Asset Probe", 16f, true)
-                .Text("ADOFAIが現在ロードしているGameObjectと、そのMesh / Material / Shader / Texture / Sprite / Unity参照を調査します。", 9f, false)
+                .Text("実行中ADOFAIが参照しているPrefab / Mesh / Material / Shader / Texture / Sprite / Unity参照を調査します。", 9f, false)
                 .Spacer(4)
-                .Text("ロード済みGameObject名", 10f, false)
+                .Button("純正 meshFloor prefab を調査", "probe-mesh-floor", string.Empty, false)
+                .Button("純正 spriteFloor prefab を調査", "probe-sprite-floor", string.Empty, false)
+                .Button("現在のエディタ先頭床を調査", "probe-floor", string.Empty, false)
+                .Spacer(4)
+                .Text("その他のロード済みGameObject名", 10f, false)
                 .BeginRow()
                     .Input(targetName, "set-target")
                     .Button("名前で調査", "probe-name", string.Empty, false)
                 .EndRow()
-                .Button("エディタ先頭床を調査", "probe-floor", string.Empty, false)
                 .Spacer(6)
                 .Text("結果: " + summary, 9f, true)
                 .Text(status, 9f, false);
@@ -72,16 +75,11 @@ namespace Kiner.ADOFAIEditorQoL.UI
         {
             switch (actionId)
             {
-                case "set-target":
-                    targetName = argument ?? string.Empty;
-                    Publish();
-                    return;
-                case "probe-name":
-                    Run(delegate { return AssetProbe.ProbeLoadedObject(targetName); });
-                    return;
-                case "probe-floor":
-                    Run(AssetProbe.ProbeFirstEditorFloor);
-                    return;
+                case "set-target": targetName = argument ?? string.Empty; Publish(); return;
+                case "probe-mesh-floor": Run(AssetProbe.ProbeMeshFloorPrefab); return;
+                case "probe-sprite-floor": Run(AssetProbe.ProbeSpriteFloorPrefab); return;
+                case "probe-floor": Run(AssetProbe.ProbeFirstEditorFloor); return;
+                case "probe-name": Run(delegate { return AssetProbe.ProbeLoadedObject(targetName); }); return;
             }
         }
 
