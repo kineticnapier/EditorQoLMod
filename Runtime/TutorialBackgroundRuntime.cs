@@ -345,7 +345,7 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
                 object song = songField == null ? null : songField.GetValue(conductor);
                 if (song == null) return 1f;
 
-                PropertyInfo pitchProperty = song.GetType().GetProperty("pitch", flags);
+                System.Reflection.PropertyInfo pitchProperty = song.GetType().GetProperty("pitch", flags);
                 object value = pitchProperty == null ? null : pitchProperty.GetValue(song, null);
                 if (value == null)
                 {
