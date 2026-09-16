@@ -47,10 +47,13 @@ namespace Kiner.ADOFAIEditorQoL.UI
         {
             WorkbenchPaneView view = new WorkbenchPaneView()
                 .Text("Asset Probe", 16f, true)
-                .Text("Mesh/Material/Textureと、エディタが実際に使うイベント・床アイコン対応を調査します。", 9f, false)
+                .Text("Mesh/Material/Texture、イベント/床アイコン、ヒットサウンドを実行中のゲームから調査します。", 9f, false)
                 .Spacer(4)
                 .Button("イベント/床アイコン辞書を一括調査", "probe-icon-catalog", string.Empty, false)
                 .Text("LevelEventType / category / RDConstants特殊床アイコンを列挙し、Sprite領域をPNGへ切り出します。", 8f, false)
+                .Spacer(4)
+                .Button("ヒットサウンドをExtremeEditor用に書き出す", "probe-hitsounds", string.Empty, false)
+                .Text("AudioManagerのsnd* AudioClipをWAV化し、ADOFAIのヒットサウンド補正値と一緒にmanifestへ保存します。", 8f, false)
                 .Spacer(4)
                 .Button("純正 meshFloor prefab を調査", "probe-mesh-floor", string.Empty, false)
                 .Button("純正 spriteFloor prefab を調査", "probe-sprite-floor", string.Empty, false)
@@ -76,6 +79,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
             {
                 case "set-target": targetName = argument ?? string.Empty; Publish(); return;
                 case "probe-icon-catalog": Run(IconCatalogProbe.Probe); return;
+                case "probe-hitsounds": Run(HitSoundProbe.Probe); return;
                 case "probe-mesh-floor": Run(AssetProbe.ProbeMeshFloorPrefab); return;
                 case "probe-sprite-floor": Run(AssetProbe.ProbeSpriteFloorPrefab); return;
                 case "probe-floor": Run(AssetProbe.ProbeFirstEditorFloor); return;
@@ -89,7 +93,7 @@ namespace Kiner.ADOFAIEditorQoL.UI
             {
                 AssetProbeResult result = probe();
                 summary = result.RootSummary + " / " + result.GameObjectCount + " objects / " + result.ComponentCount +
-                    " components / " + result.ExportedTextureCount + " PNGs";
+                    " components / " + result.ExportedTextureCount + " exports";
                 reportPath = result.ReportPath;
                 exportDirectory = result.ExportDirectory;
                 status = "調査・書き出し完了 v" + ModVersion.Current;
