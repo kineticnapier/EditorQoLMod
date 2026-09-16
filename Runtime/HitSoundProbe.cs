@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Reflection;
 using System.Text;
 using UnityEngine;
 
@@ -17,19 +18,28 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             string exportDirectory = Path.Combine(baseDirectory, stamp + "-hitsounds-assets");
             Directory.CreateDirectory(exportDirectory);
 
-            AudioManager manager = AudioManager.Instance;
-            if (manager == null) throw new InvalidOperationException("AudioManager.Instance がまだ生成されていません。");
+            Type audioClipType = ResolveAudioClipType();
+            UnityEngine.Object[] loadedClips = Resources.FindObjectsOfTypeAll(audioClipType);
 
             var report = new StringBuilder(16384);
             var manifest = new StringBuilder(4096);
             report.AppendLine("ADOFAI Editor QoL HitSound Probe");
             report.AppendLine("Mod version: " + ModVersion.Current);
             report.AppendLine("Unity: " + Application.unityVersion);
+            report.AppendLine("AudioClip runtime type: " + audioClipType.AssemblyQualifiedName);
+            report.AppendLine("Loaded AudioClips: " + loadedClips.Length);
             report.AppendLine("Export directory: " + exportDirectory);
             report.AppendLine();
             manifest.AppendLine("HitSound\tFile\tOffsetSeconds\tSamples\tChannels\tFrequency");
 
-            AudioClip[] loadedClips = Resources.FindObjectsOfTypeAll<AudioClip>();
+            var clipsByName = new Dictionary<string, UnityEngine.Object>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < loadedClips.Length; i++)
+            {
+                UnityEngine.Object clip = loadedClips[i];
+                if (clip == null || string.IsNullOrEmpty(clip.name)) continue;
+                if (!clipsByName.ContainsKey(clip.name)) clipsByName.Add(clip.name, clip);
+            }
+
             int exported = 0;
             int missing = 0;
 
@@ -40,24 +50,8 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
                     continue;
 
                 string key = "snd" + name;
-                AudioClip clip = null;
-                if (manager.audioLib != null)
-                    manager.audioLib.TryGetValue(key, out clip);
-
-                if (clip == null)
-                {
-                    for (int i = 0; i < loadedClips.Length; i++)
-                    {
-                        AudioClip candidate = loadedClips[i];
-                        if (candidate != null && string.Equals(candidate.name, key, StringComparison.OrdinalIgnoreCase))
-                        {
-                            clip = candidate;
-                            break;
-                        }
-                    }
-                }
-
-                if (clip == null)
+                UnityEngine.Object clip;
+                if (!clipsByName.TryGetValue(key, out clip) || clip == null)
                 {
                     report.AppendLine(name + ": MISSING (expected " + key + ")");
                     missing++;
@@ -66,9 +60,13 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
 
                 try
                 {
+                    int samples = ReadIntProperty(clip, "samples");
+                    int channels = ReadIntProperty(clip, "channels");
+                    int frequency = ReadIntProperty(clip, "frequency");
+
                     string fileName = key + ".wav";
                     string path = Path.Combine(exportDirectory, fileName);
-                    ExportPcm16Wav(clip, path);
+                    ExportPcm16Wav(clip, samples, channels, frequency, path);
 
                     double offset = 0.0;
                     try
@@ -84,12 +82,12 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
                     manifest.Append(name).Append('\t')
                         .Append(fileName).Append('\t')
                         .Append(offset.ToString("R", CultureInfo.InvariantCulture)).Append('\t')
-                        .Append(clip.samples.ToString(CultureInfo.InvariantCulture)).Append('\t')
-                        .Append(clip.channels.ToString(CultureInfo.InvariantCulture)).Append('\t')
-                        .Append(clip.frequency.ToString(CultureInfo.InvariantCulture)).AppendLine();
+                        .Append(samples.ToString(CultureInfo.InvariantCulture)).Append('\t')
+                        .Append(channels.ToString(CultureInfo.InvariantCulture)).Append('\t')
+                        .Append(frequency.ToString(CultureInfo.InvariantCulture)).AppendLine();
                     report.AppendLine(name + ": " + clip.name + " -> " + fileName +
-                                      " | " + clip.samples + " samples | " + clip.channels + " ch | " +
-                                      clip.frequency + " Hz | offset " + offset.ToString("R", CultureInfo.InvariantCulture));
+                                      " | " + samples + " samples | " + channels + " ch | " +
+                                      frequency + " Hz | offset " + offset.ToString("R", CultureInfo.InvariantCulture));
                     exported++;
                 }
                 catch (Exception ex)
@@ -122,19 +120,60 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             };
         }
 
-        private static void ExportPcm16Wav(AudioClip clip, string path)
+        private static Type ResolveAudioClipType()
         {
-            if (clip.samples <= 0 || clip.channels <= 0 || clip.frequency <= 0)
+            Type type = Type.GetType("UnityEngine.AudioClip, UnityEngine.AudioModule", false);
+            if (type != null) return type;
+
+            Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
+            for (int i = 0; i < assemblies.Length; i++)
+            {
+                Assembly assembly = assemblies[i];
+                if (!string.Equals(assembly.GetName().Name, "UnityEngine.AudioModule", StringComparison.Ordinal))
+                    continue;
+
+                type = assembly.GetType("UnityEngine.AudioClip", false);
+                if (type != null) return type;
+            }
+
+            throw new InvalidOperationException("UnityEngine.AudioClip のruntime型が見つかりません。");
+        }
+
+        private static int ReadIntProperty(UnityEngine.Object clip, string propertyName)
+        {
+            PropertyInfo property = clip.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public);
+            if (property == null)
+                throw new MissingMemberException(clip.GetType().FullName, propertyName);
+
+            object value = property.GetValue(clip, null);
+            if (value == null)
+                throw new InvalidOperationException(propertyName + " returned null for " + clip.name);
+            return Convert.ToInt32(value, CultureInfo.InvariantCulture);
+        }
+
+        private static void ExportPcm16Wav(UnityEngine.Object clip, int samplesPerChannel, int channelsValue, int sampleRate, string path)
+        {
+            if (samplesPerChannel <= 0 || channelsValue <= 0 || sampleRate <= 0)
                 throw new InvalidOperationException("Invalid AudioClip format: " + clip.name);
 
-            int sampleValues = checked(clip.samples * clip.channels);
+            int sampleValues = checked(samplesPerChannel * channelsValue);
             var samples = new float[sampleValues];
-            if (!clip.GetData(samples, 0))
+
+            MethodInfo getData = clip.GetType().GetMethod(
+                "GetData",
+                BindingFlags.Instance | BindingFlags.Public,
+                null,
+                new[] { typeof(float[]), typeof(int) },
+                null);
+            if (getData == null)
+                throw new MissingMethodException(clip.GetType().FullName, "GetData(float[], int)");
+
+            object result = getData.Invoke(clip, new object[] { samples, 0 });
+            if (result is bool && !(bool)result)
                 throw new InvalidOperationException("AudioClip.GetData returned false: " + clip.name);
 
             const short bitsPerSample = 16;
-            short channels = checked((short)clip.channels);
-            int sampleRate = clip.frequency;
+            short channels = checked((short)channelsValue);
             short blockAlign = checked((short)(channels * (bitsPerSample / 8)));
             int byteRate = checked(sampleRate * blockAlign);
             int dataBytes = checked(sampleValues * 2);
@@ -158,10 +197,10 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
 
                 for (int i = 0; i < samples.Length; i++)
                 {
-                    float sample = Mathf.Clamp(samples[i], -1f, 1f);
+                    float sample = Math.Max(-1f, Math.Min(1f, samples[i]));
                     short pcm = sample <= -1f
                         ? short.MinValue
-                        : (short)Mathf.RoundToInt(sample * short.MaxValue);
+                        : (short)Math.Round(sample * short.MaxValue);
                     writer.Write(pcm);
                 }
             }
