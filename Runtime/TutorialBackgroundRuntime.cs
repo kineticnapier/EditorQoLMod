@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using ADOFAI;
 using Kiner.ADOFAIEditorQoL.Core;
 using UnityEngine;
@@ -328,8 +329,37 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             float speed = 1f;
             if (scrLevelMaker.instance != null && floor >= 0 && floor < scrLevelMaker.instance.listFloors.Count)
                 speed = Mathf.Max(0.0001f, scrLevelMaker.instance.listFloors[floor].speed);
-            float pitch = ADOBase.conductor.song == null ? 1f : Mathf.Max(0.0001f, ADOBase.conductor.song.pitch);
+            float pitch = GetConductorPitch();
             return beats * (float)ADOBase.conductor.crotchetAtStart / (speed * pitch);
+        }
+
+        private static float GetConductorPitch()
+        {
+            object conductor = ADOBase.conductor;
+            if (conductor == null) return 1f;
+
+            try
+            {
+                const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+                FieldInfo songField = conductor.GetType().GetField("song", flags);
+                object song = songField == null ? null : songField.GetValue(conductor);
+                if (song == null) return 1f;
+
+                PropertyInfo pitchProperty = song.GetType().GetProperty("pitch", flags);
+                object value = pitchProperty == null ? null : pitchProperty.GetValue(song, null);
+                if (value == null)
+                {
+                    FieldInfo pitchField = song.GetType().GetField("pitch", flags);
+                    value = pitchField == null ? null : pitchField.GetValue(song);
+                }
+
+                if (value == null) return 1f;
+                return Mathf.Max(0.0001f, Convert.ToSingle(value));
+            }
+            catch
+            {
+                return 1f;
+            }
         }
 
         private void UpdateTween()
