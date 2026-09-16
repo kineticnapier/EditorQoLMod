@@ -20,6 +20,9 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
 
             Type audioClipType = ResolveAudioClipType();
             UnityEngine.Object[] loadedClips = Resources.FindObjectsOfTypeAll(audioClipType);
+            AudioManager manager = AudioManager.Instance;
+            if (manager == null)
+                throw new InvalidOperationException("AudioManager.Instance がまだ生成されていません。");
 
             var report = new StringBuilder(16384);
             var manifest = new StringBuilder(4096);
@@ -27,7 +30,7 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             report.AppendLine("Mod version: " + ModVersion.Current);
             report.AppendLine("Unity: " + Application.unityVersion);
             report.AppendLine("AudioClip runtime type: " + audioClipType.AssemblyQualifiedName);
-            report.AppendLine("Loaded AudioClips: " + loadedClips.Length);
+            report.AppendLine("Initially loaded AudioClips: " + loadedClips.Length);
             report.AppendLine("Export directory: " + exportDirectory);
             report.AppendLine();
             manifest.AppendLine("HitSound\tFile\tOffsetSeconds\tSamples\tChannels\tFrequency");
@@ -42,6 +45,7 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
 
             int exported = 0;
             int missing = 0;
+            int lazyLoaded = 0;
 
             foreach (HitSound hitSound in Enum.GetValues(typeof(HitSound)))
             {
@@ -51,9 +55,20 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
 
                 string key = "snd" + name;
                 UnityEngine.Object clip;
-                if (!clipsByName.TryGetValue(key, out clip) || clip == null)
+                bool wasLoaded = clipsByName.TryGetValue(key, out clip) && clip != null;
+                if (!wasLoaded)
                 {
-                    report.AppendLine(name + ": MISSING (expected " + key + ")");
+                    clip = FindOrLoadAudioClip(manager, key, audioClipType, report);
+                    if (clip != null)
+                    {
+                        lazyLoaded++;
+                        clipsByName[key] = clip;
+                    }
+                }
+
+                if (clip == null)
+                {
+                    report.AppendLine(name + ": MISSING after AudioManager.FindOrLoadAudioClip (expected " + key + ")");
                     missing++;
                     continue;
                 }
@@ -87,7 +102,8 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
                         .Append(frequency.ToString(CultureInfo.InvariantCulture)).AppendLine();
                     report.AppendLine(name + ": " + clip.name + " -> " + fileName +
                                       " | " + samples + " samples | " + channels + " ch | " +
-                                      frequency + " Hz | offset " + offset.ToString("R", CultureInfo.InvariantCulture));
+                                      frequency + " Hz | offset " + offset.ToString("R", CultureInfo.InvariantCulture) +
+                                      (wasLoaded ? " | already loaded" : " | lazy-loaded"));
                     exported++;
                 }
                 catch (Exception ex)
@@ -100,13 +116,14 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             File.WriteAllText(manifestPath, manifest.ToString(), new UTF8Encoding(false));
             report.AppendLine();
             report.AppendLine("Exported: " + exported);
+            report.AppendLine("Lazy-loaded: " + lazyLoaded);
             report.AppendLine("Missing: " + missing);
             report.AppendLine("Manifest: " + manifestPath);
 
             string reportPath = Path.Combine(baseDirectory, stamp + "-hitsounds.txt");
             File.WriteAllText(reportPath, report.ToString(), new UTF8Encoding(false));
             if (Main.Logger != null)
-                Main.Logger.Log("HitSound Probe: " + exported + " WAVs -> " + exportDirectory);
+                Main.Logger.Log("HitSound Probe: " + exported + " WAVs (" + lazyLoaded + " lazy-loaded) -> " + exportDirectory);
 
             return new AssetProbeResult
             {
@@ -139,6 +156,44 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             throw new InvalidOperationException("UnityEngine.AudioClip のruntime型が見つかりません。");
         }
 
+        private static UnityEngine.Object FindOrLoadAudioClip(
+            AudioManager manager,
+            string key,
+            Type audioClipType,
+            StringBuilder report)
+        {
+            try
+            {
+                MethodInfo method = manager.GetType().GetMethod(
+                    "FindOrLoadAudioClip",
+                    BindingFlags.Instance | BindingFlags.Public,
+                    null,
+                    new[] { typeof(string), typeof(string), typeof(bool) },
+                    null);
+                if (method == null)
+                    throw new MissingMethodException(manager.GetType().FullName,
+                        "FindOrLoadAudioClip(string, string, bool)");
+
+                object value = method.Invoke(manager, new object[] { key, null, false });
+                if (value == null)
+                    return null;
+                if (!audioClipType.IsInstanceOfType(value))
+                    throw new InvalidCastException("FindOrLoadAudioClip returned " + value.GetType().FullName);
+                return value as UnityEngine.Object;
+            }
+            catch (Exception ex)
+            {
+                report.AppendLine(key + ": lazy-load failed: " + Unwrap(ex).Message);
+                return null;
+            }
+        }
+
+        private static Exception Unwrap(Exception ex)
+        {
+            TargetInvocationException target = ex as TargetInvocationException;
+            return target != null && target.InnerException != null ? target.InnerException : ex;
+        }
+
         private static int ReadIntProperty(UnityEngine.Object clip, string propertyName)
         {
             PropertyInfo property = clip.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public);
@@ -168,9 +223,27 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
             if (getData == null)
                 throw new MissingMethodException(clip.GetType().FullName, "GetData(float[], int)");
 
-            object result = getData.Invoke(clip, new object[] { samples, 0 });
-            if (result is bool && !(bool)result)
-                throw new InvalidOperationException("AudioClip.GetData returned false: " + clip.name);
+            bool success = InvokeGetData(getData, clip, samples);
+            if (!success)
+            {
+                // Some clips are known to exist but have not loaded their sample data yet.
+                // Ask Unity to load it, then retry once. This still avoids a compile-time
+                // UnityEngine.AudioModule reference.
+                MethodInfo loadAudioData = clip.GetType().GetMethod(
+                    "LoadAudioData",
+                    BindingFlags.Instance | BindingFlags.Public,
+                    null,
+                    Type.EmptyTypes,
+                    null);
+                if (loadAudioData != null)
+                {
+                    loadAudioData.Invoke(clip, null);
+                    success = InvokeGetData(getData, clip, samples);
+                }
+            }
+
+            if (!success)
+                throw new InvalidOperationException("AudioClip.GetData returned false after LoadAudioData retry: " + clip.name);
 
             const short bitsPerSample = 16;
             short channels = checked((short)channelsValue);
@@ -204,6 +277,12 @@ namespace Kiner.ADOFAIEditorQoL.Runtime
                     writer.Write(pcm);
                 }
             }
+        }
+
+        private static bool InvokeGetData(MethodInfo getData, UnityEngine.Object clip, float[] samples)
+        {
+            object result = getData.Invoke(clip, new object[] { samples, 0 });
+            return !(result is bool) || (bool)result;
         }
     }
 }
