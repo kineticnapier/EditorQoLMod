@@ -32,7 +32,6 @@
     <Reference Include="RDTools"><HintPath>$(GameManagedDir)\RDTools.dll</HintPath><Private>False</Private></Reference>
     <Reference Include="Newtonsoft.Json"><HintPath>$(GameManagedDir)\Newtonsoft.Json.dll</HintPath><Private>False</Private></Reference>
     <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameManagedDir)\UnityEngine.CoreModule.dll</HintPath><Private>False</Private></Reference>
-    <Reference Include="UnityEngine.AudioModule"><HintPath>$(GameManagedDir)\UnityEngine.AudioModule.dll</HintPath><Private>False</Private></Reference>
     <Reference Include="UnityEngine.JSONSerializeModule"><HintPath>$(GameManagedDir)\UnityEngine.JSONSerializeModule.dll</HintPath><Private>False</Private></Reference>
     <Reference Include="UnityEngine.UIModule"><HintPath>$(GameManagedDir)\UnityEngine.UIModule.dll</HintPath><Private>False</Private></Reference>
     <Reference Include="UnityEngine.UI"><HintPath>$(GameManagedDir)\UnityEngine.UI.dll</HintPath><Private>False</Private></Reference>
